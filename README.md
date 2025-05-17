@@ -13,10 +13,10 @@ A macOS monitoring tool that creates email alerts and captures system informatio
 
 ## Installation
 
-### Using Homebrew (Recommended)
+### Using Homebrew-tap (Recommended)
 
 ```bash
-brew install mac-watcher
+brew install ramanaraj7/tap/mac-watcher
 ```
 
 After installation, all dependencies are automatically installed. You'll just need to set up and configure the monitoring:
