@@ -19,19 +19,19 @@ class MacWatcher < Formula
     chmod 0755, pkgshare/"setup.sh"
   end
 
-  def post_install
-    system bin/"mac-watcher", "--dependencies"
-  end
-
   def caveats
     <<~EOS
       To complete setup, run:
         mac-watcher --setup
         mac-watcher --config (optional, to customize settings)
+        mac-watcher --dependencies (to check/install required dependencies)
+
       Then start the sleepwatcher service:
         brew services start sleepwatcher
+
       To test functionality without waiting for a wake event:
         mac-watcher --test
+
       The setup process creates these user files:
         ~/.wakeup (wake detection script)
         ~/.config/monitor.conf (default configuration)
