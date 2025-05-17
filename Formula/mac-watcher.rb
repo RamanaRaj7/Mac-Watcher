@@ -28,13 +28,10 @@ class MacWatcher < Formula
       To complete setup, run:
         mac-watcher --setup
         mac-watcher --config (optional, to customize settings)
-      
       Then start the sleepwatcher service:
         brew services start sleepwatcher
-      
       To test functionality without waiting for a wake event:
         mac-watcher --test
-      
       The setup process creates these user files:
         ~/.wakeup (wake detection script)
         ~/.config/monitor.conf (default configuration)
