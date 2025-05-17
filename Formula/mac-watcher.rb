@@ -5,6 +5,7 @@ class MacWatcher < Formula
   sha256 "a53d8bf8a8c3c18471b5a08bc1991bd3561ab398c7a409c8a170b8023c891228"
   license "MIT"
 
+  depends_on :macos
   depends_on "imagesnap"
   depends_on "jq"
   depends_on "sleepwatcher"
