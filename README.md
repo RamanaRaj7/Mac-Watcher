@@ -88,7 +88,7 @@ This will run the monitor script, which will:
 
 ## Data Storage
 
-By default, all captured data is stored in:
+By default, all captured data is stored in:(it's stored in a hidden directory by default to view it press command + shift + .)
 
 ```
 ~/Pictures/.access/YEAR/MONTH/DAY/TIME/
