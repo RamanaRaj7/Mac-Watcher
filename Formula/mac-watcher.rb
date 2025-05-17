@@ -28,108 +28,22 @@ class MacWatcher < Formula
     system "#{bin}/mac-watcher", "--dependencies"
   end
   
-  # Helper method to check if files exist
-  def self.check_file_exists(file_path)
-    File.exist?(file_path) ? "EXISTS" : "NOT FOUND"
-  end
-  
-  # Standard pre_uninstall hook
+  # Note about manual cleanup
   def pre_uninstall
-    require "fileutils"
-    
-    # Log before cleanup
-    home = ENV["HOME"]
-    
-    puts "===== MAC-WATCHER UNINSTALL DIAGNOSTIC ====="
-    puts "HOME: #{home}"
-    puts "Config files before cleanup:"
-    puts "  .wakeup: #{self.class.check_file_exists("#{home}/.wakeup")}"
-    puts "  .config/monitor.conf: #{self.class.check_file_exists("#{home}/.config/monitor.conf")}"
-    puts "  .config/mac-watcher: #{self.class.check_file_exists("#{home}/.config/mac-watcher")}"
+    puts "\n===== MAC-WATCHER UNINSTALL INFORMATION ====="
+    puts "Mac-Watcher has been uninstalled, but configuration files remain."
+    puts "To completely remove all related files, please run the following commands:"
+    puts ""
+    puts "  # Stop the sleepwatcher service"
+    puts "  brew services stop sleepwatcher"
+    puts ""
+    puts "  # Remove configuration files"
+    puts "  rm -f ~/.wakeup"
+    puts "  rm -f ~/.config/monitor.conf"
+    puts ""
+    puts "  # Remove symlinks (if any)"
+    puts "  rm -f /usr/local/bin/mac-watcher"
     puts "============================================="
-    
-    # Stop sleepwatcher service if it's running
-    system "brew", "services", "stop", "sleepwatcher" rescue nil
-    
-    # Remove configuration files - expand HOME variable to ensure it works
-    FileUtils.rm_f("#{home}/.wakeup")
-    FileUtils.rm_f("#{home}/.config/monitor.conf")
-    FileUtils.rm_rf("#{home}/.config/mac-watcher")
-    
-    # Remove any lingering symlinks
-    FileUtils.rm_f("/usr/local/bin/mac-watcher")
-    
-    # Log after cleanup
-    puts "Config files after cleanup:"
-    puts "  .wakeup: #{self.class.check_file_exists("#{home}/.wakeup")}"
-    puts "  .config/monitor.conf: #{self.class.check_file_exists("#{home}/.config/monitor.conf")}"
-    puts "  .config/mac-watcher: #{self.class.check_file_exists("#{home}/.config/mac-watcher")}"
-    puts "============================================="
-  end
-  
-  # Add a more robust uninstall hook as a backup
-  def post_uninstall
-    require "fileutils"
-    
-    # This is a backup to ensure cleanup happens
-    home = ENV["HOME"]
-    
-    # Log before post-uninstall cleanup
-    puts "\n===== MAC-WATCHER POST-UNINSTALL DIAGNOSTIC ====="
-    puts "HOME: #{home}"
-    puts "Config files before post-uninstall cleanup:"
-    puts "  .wakeup: #{self.class.check_file_exists("#{home}/.wakeup")}"
-    puts "  .config/monitor.conf: #{self.class.check_file_exists("#{home}/.config/monitor.conf")}"
-    puts "  .config/mac-watcher: #{self.class.check_file_exists("#{home}/.config/mac-watcher")}"
-    puts "=================================================="
-    
-    # Try different approaches to clean up files
-    
-    # Approach 1: Direct removal with FileUtils
-    [
-      "#{home}/.wakeup",
-      "#{home}/.config/monitor.conf",
-      "#{home}/.config/mac-watcher",
-      "/usr/local/bin/mac-watcher"
-    ].each do |path|
-      if File.directory?(path)
-        FileUtils.rm_rf(path)
-        puts "Removed directory: #{path}"
-      elsif File.exist?(path)
-        FileUtils.rm_f(path)
-        puts "Removed file: #{path}"
-      else
-        puts "Not found: #{path}"
-      end
-    end
-    
-    # Approach 2: Try using system commands directly
-    system "rm -f #{home}/.wakeup"
-    system "rm -f #{home}/.config/monitor.conf"
-    system "rm -rf #{home}/.config/mac-watcher"
-    
-    # Approach 3: Create and run a cleanup script with proper permissions
-    cleanup_script = "#{Dir.tmpdir}/mac-watcher-cleanup.sh"
-    File.open(cleanup_script, "w") do |f|
-      f.puts "#!/bin/bash"
-      f.puts "rm -f ~/.wakeup ~/.config/monitor.conf"
-      f.puts "rm -rf ~/.config/mac-watcher"
-      f.puts "echo 'Cleanup script executed'"
-    end
-    
-    FileUtils.chmod(0755, cleanup_script)
-    system "#{cleanup_script}"
-    FileUtils.rm_f(cleanup_script)
-    
-    # Stop sleepwatcher service if it's running and not needed
-    system "pgrep -x sleepwatcher >/dev/null && brew services stop sleepwatcher || true"
-    
-    # Log after cleanup
-    puts "\nConfig files after post-uninstall cleanup:"
-    puts "  .wakeup: #{self.class.check_file_exists("#{home}/.wakeup")}"
-    puts "  .config/monitor.conf: #{self.class.check_file_exists("#{home}/.config/monitor.conf")}"
-    puts "  .config/mac-watcher: #{self.class.check_file_exists("#{home}/.config/mac-watcher")}"
-    puts "=================================================="
   end
 
   def caveats
@@ -157,18 +71,16 @@ class MacWatcher < Formula
       For more information, run:
         mac-watcher --instructions
       
-      To completely uninstall and remove all configuration files:
+      To completely uninstall Mac-Watcher:
+        # Uninstall the formula
         brew uninstall ramanaraj7/tap/mac-watcher
         
-      If the automatic cleanup doesn't work, manually clean up with:
-        rm -f ~/.wakeup ~/.config/monitor.conf
-        rm -rf ~/.config/mac-watcher
-        
-      For a complete reset of all services and files:
+        # Stop the sleepwatcher service
         brew services stop sleepwatcher
-        brew uninstall ramanaraj7/tap/mac-watcher
-        rm -f ~/.wakeup ~/.config/monitor.conf
-        rm -rf ~/.config/mac-watcher
+        
+        # Manually remove all configuration files
+        rm -f ~/.wakeup
+        rm -f ~/.config/monitor.conf
     EOS
   end
   
