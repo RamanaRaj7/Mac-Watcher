@@ -1,5 +1,6 @@
-# Mac-Watcher
+# Mac-Watcher 
 
+if you find it intresting a ⭐️ on GitHub would mean a lot!
 A macOS monitoring tool that creates email alerts and captures system information when your Mac wakes from sleep.
 
 ## Features
