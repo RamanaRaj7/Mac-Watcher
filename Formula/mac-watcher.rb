@@ -2,7 +2,7 @@ class MacWatcher < Formula
   desc "Monitor Mac activity with email alerts when system wakes from sleep"
   homepage "https://github.com/ramanaraj7/mac-watcher"
   url "https://github.com/ramanaraj7/mac-watcher/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "850aad9e7c208dda3eadf7482ff25fc1ccdc3737345951d8783e1a8ed41df1be" # SHA256 of the GitHub release file
+  sha256 "a53d8bf8a8c3c18471b5a08bc1991bd3561ab398c7a409c8a170b8023c891228" # SHA256 of the GitHub release file
   license "MIT"
   
   depends_on "sleepwatcher"
