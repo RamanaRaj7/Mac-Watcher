@@ -1,0 +1,332 @@
+#!/bin/bash
+#=================================================================
+# MAC-WATCHER COMMAND-LINE INTERFACE
+# 
+# A security monitoring tool that creates email alerts and captures 
+# system information when your Mac wakes from sleep.
+#=================================================================
+
+# Exit on error
+set -e
+
+# Color definitions - simplified and consistent palette
+ACCENT='\033[0;36m'     # Cyan for headings and highlights
+PRIMARY='\033[0;36m'    # Blue for primary elements
+SUCCESS='\033[0;32m'    # Green for success/enabled states
+WARNING='\033[0;33m'    # Yellow for warnings/optional states
+ERROR='\033[0;31m'      # Red for errors/disabled states
+NC='\033[0m'            # No Color
+BOLD='\033[1m'          # Bold text for emphasis
+
+# Determine the installation directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SHARE_DIR="$(dirname "$SCRIPT_DIR")/share/mac-watcher"
+CONFIG_FILE="$HOME/.config/monitor.conf"
+
+#=================================================================
+# DISPLAY FUNCTIONS
+#=================================================================
+
+# Function to display usage instructions
+display_help() {
+    echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${ACCENT}${BOLD}║                  MAC-WATCHER                       ║${NC}"
+    echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
+    echo
+    echo -e "${PRIMARY}${BOLD}USAGE:${NC}"
+    echo -e "  mac-watcher [OPTION]"
+    echo
+    echo -e "${PRIMARY}${BOLD}OPTIONS:${NC}"
+    echo -e "  ${SUCCESS}--dependencies${NC}  Check and install missing dependencies"
+    echo -e "  ${SUCCESS}--setup${NC}         Setup .wakeup file and default configuration"
+    echo -e "  ${SUCCESS}--config${NC}        Configure settings"
+    echo -e "  ${SUCCESS}--diagnostics${NC}   Check current setup"
+    echo -e "  ${SUCCESS}--test${NC}          Run the monitor script manually for testing"
+    echo -e "  ${SUCCESS}--instructions${NC}  Show detailed usage instructions"
+    echo -e "  ${SUCCESS}--help${NC}          Display this help message"
+    echo
+    echo -e "${PRIMARY}${BOLD}RECOMMENDED WORKFLOW:${NC}"
+    echo -e "  1. ${SUCCESS}mac-watcher --dependencies${NC}"
+    echo -e "  2. ${SUCCESS}mac-watcher --setup${NC}"
+    echo -e "  3. ${SUCCESS}mac-watcher --config${NC}"
+    echo -e "  4. ${SUCCESS}brew services start sleepwatcher${NC}"
+    echo -e "  5. ${SUCCESS}mac-watcher --test${NC} (optional, to test functionality)"
+    echo
+    echo -e "${PRIMARY}For more information, run:${NC} ${SUCCESS}mac-watcher --instructions${NC}"
+}
+
+# Function to display detailed instructions
+display_instructions() {
+    echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${ACCENT}${BOLD}║             MAC-WATCHER INSTRUCTIONS               ║${NC}"
+    echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
+    echo
+    echo -e "${PRIMARY}${BOLD}OVERVIEW:${NC}"
+    echo -e "  Mac-Watcher is a security tool that monitors Mac usage and sends alerts"
+    echo -e "  when your Mac wakes from sleep."
+    echo
+    echo -e "${PRIMARY}${BOLD}SETUP PROCESS:${NC}"
+    echo -e "  ${SUCCESS}1.${NC} Run '${PRIMARY}mac-watcher --dependencies${NC}' to ensure all dependencies are installed"
+    echo -e "  ${SUCCESS}2.${NC} Run '${PRIMARY}mac-watcher --setup${NC}' to create the necessary .wakeup file and default configuration"
+    echo -e "  ${SUCCESS}3.${NC} Run '${PRIMARY}mac-watcher --config${NC}' to customize email alerts, location tracking,"
+    echo -e "     screenshots, and other options"
+    echo -e "  ${SUCCESS}4.${NC} Start the sleepwatcher service with '${PRIMARY}brew services start sleepwatcher${NC}'"
+    echo -e "  ${SUCCESS}5.${NC} Test functionality with '${PRIMARY}mac-watcher --test${NC}' (optional)"
+    echo
+    echo -e "${PRIMARY}${BOLD}CONFIGURATION FILES:${NC}"
+    echo -e "  ${SUCCESS}•${NC} ${PRIMARY}~/.wakeup${NC}: Script executed when your Mac wakes from sleep"
+    echo -e "  ${SUCCESS}•${NC} ${PRIMARY}~/.config/monitor.conf${NC}: Configuration settings"
+    echo
+    echo -e "${PRIMARY}${BOLD}VIEWING CAPTURED DATA:${NC}"
+    echo -e "  The monitoring data is stored in the configured directory (default: ~/Pictures/.access)"
+    echo -e "  organized by year/month/day/time."
+    echo
+    echo -e "${PRIMARY}${BOLD}TROUBLESHOOTING:${NC}"
+    echo -e "  Run '${PRIMARY}mac-watcher --diagnostics${NC}' to check your setup for common issues"
+    echo -e "  Run '${PRIMARY}mac-watcher --test${NC}' to manually trigger monitoring and test functionality"
+    echo
+    echo -e "${PRIMARY}${BOLD}MORE INFORMATION:${NC}"
+    echo -e "  Visit: ${SUCCESS}https://github.com/ramanaraj7/mac-watcher${NC}"
+}
+
+# Function to check dependencies
+check_dependencies() {
+    echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${ACCENT}${BOLD}║              DEPENDENCY CHECKER                    ║${NC}"
+    echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
+    echo
+    
+    # Check for Homebrew
+    echo -e "${ACCENT}◇ PACKAGE MANAGEMENT${NC}"
+    if ! command -v brew &> /dev/null; then
+        echo -e "  Homebrew      : ${ERROR}Not installed${NC}"
+        echo -e "  ${WARNING}Please install Homebrew from https://brew.sh/${NC}"
+        exit 1
+    else
+        echo -e "  Homebrew      : ${SUCCESS}Installed${NC}"
+    fi
+    
+    # Check for sleepwatcher
+    echo -e "\n${ACCENT}◇ SYSTEM MONITORING${NC}"
+    if ! brew list sleepwatcher &> /dev/null; then
+        echo -e "  Sleepwatcher  : ${WARNING}Not installed${NC}"
+        echo -e "  ${WARNING}Installing sleepwatcher...${NC}"
+        brew install sleepwatcher
+        echo -e "  Sleepwatcher  : ${SUCCESS}Installed successfully${NC}"
+    else
+        echo -e "  Sleepwatcher  : ${SUCCESS}Installed${NC}"
+    fi
+    
+    # Check for CoreLocationCLI
+    echo -e "\n${ACCENT}◇ LOCATION SERVICES${NC}"
+    if ! command -v CoreLocationCLI &> /dev/null; then
+        echo -e "  CoreLocationCLI: ${WARNING}Not installed${NC}"
+        echo -e "  ${WARNING}Installing CoreLocationCLI...${NC}"
+        brew install --cask corelocationcli
+        
+        if ! command -v CoreLocationCLI &> /dev/null; then
+            echo -e "  CoreLocationCLI: ${ERROR}Installation failed${NC}"
+            echo -e "  ${WARNING}⚠️  Please install manually:${NC}"
+            echo -e "  ${WARNING}    brew install --cask corelocationcli${NC}"
+            echo -e "  ${WARNING}    Visit: https://github.com/fulldecent/corelocationcli for more information${NC}"
+        else
+            echo -e "  CoreLocationCLI: ${SUCCESS}Installed successfully${NC}"
+        fi
+    else
+        echo -e "  CoreLocationCLI: ${SUCCESS}Installed${NC}"
+    fi
+    
+    # Check for jq (JSON parser)
+    echo -e "\n${ACCENT}◇ DATA PROCESSING${NC}"
+    if ! command -v jq &> /dev/null; then
+        echo -e "  jq            : ${WARNING}Not installed${NC}"
+        echo -e "  ${WARNING}Installing jq...${NC}"
+        brew install jq
+        echo -e "  jq            : ${SUCCESS}Installed successfully${NC}"
+    else
+        echo -e "  jq            : ${SUCCESS}Installed${NC}"
+    fi
+    
+    # Check for imagesnap (webcam capture)
+    echo -e "\n${ACCENT}◇ MEDIA CAPTURE${NC}"
+    if ! command -v imagesnap &> /dev/null; then
+        echo -e "  imagesnap     : ${WARNING}Not installed${NC}"
+        echo -e "  ${WARNING}Installing imagesnap...${NC}"
+        brew install imagesnap
+        echo -e "  imagesnap     : ${SUCCESS}Installed successfully${NC}"
+    else
+        echo -e "  imagesnap     : ${SUCCESS}Installed${NC}"
+    fi
+    
+    echo -e "\n${SUCCESS}Dependency check completed.${NC}"
+}
+
+# Function to run diagnostics
+run_diagnostics() {
+    echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${ACCENT}${BOLD}║              SYSTEM DIAGNOSTICS                    ║${NC}"
+    echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
+    echo
+    
+    # Check if sleepwatcher service is running
+    echo -e "${ACCENT}◇ SLEEPWATCHER SERVICE${NC}"
+    if ! brew services list | grep sleepwatcher | grep started &> /dev/null; then
+        echo -e "  Status: ${WARNING}Not running${NC}"
+        echo -e "  ${WARNING}To fix: Run '${PRIMARY}brew services start sleepwatcher${NC}'${NC}"
+    else
+        echo -e "  Status: ${SUCCESS}Running${NC}"
+    fi
+    
+    # Check if .wakeup file exists
+    echo -e "\n${ACCENT}◇ WAKEUP FILE${NC}"
+    if [ ! -f "$HOME/.wakeup" ]; then
+        echo -e "  Existence: ${ERROR}File not found${NC}"
+        echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --setup${NC}'${NC}"
+    else
+        echo -e "  Existence: ${SUCCESS}File exists${NC}"
+        
+        # Check if .wakeup file contains the monitor.sh path
+        if ! grep -q "$SHARE_DIR/monitor.sh" "$HOME/.wakeup"; then
+            echo -e "  Configuration: ${ERROR}Incorrect${NC}"
+            echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --setup${NC}'${NC}"
+        else
+            echo -e "  Configuration: ${SUCCESS}Correct${NC}"
+        fi
+        
+        # Check file permissions
+        if [ "$(stat -f "%p" "$HOME/.wakeup" | cut -c 4-6)" != "755" ]; then
+            echo -e "  Permissions: ${ERROR}Incorrect${NC}"
+            echo -e "  ${WARNING}To fix: Run '${PRIMARY}chmod 755 $HOME/.wakeup${NC}'${NC}"
+        else
+            echo -e "  Permissions: ${SUCCESS}Correct (755)${NC}"
+        fi
+    fi
+    
+    # Check required dependencies
+    echo -e "\n${ACCENT}◇ REQUIRED DEPENDENCIES${NC}"
+    
+    # Check for CoreLocationCLI
+    if ! command -v CoreLocationCLI &> /dev/null; then
+        echo -e "  CoreLocationCLI: ${ERROR}Not installed${NC}"
+        echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --dependencies${NC}'${NC}"
+    else
+        echo -e "  CoreLocationCLI: ${SUCCESS}Installed${NC}"
+    fi
+    
+    # Check for jq
+    if ! command -v jq &> /dev/null; then
+        echo -e "  jq            : ${ERROR}Not installed${NC}"
+        echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --dependencies${NC}'${NC}"
+    else
+        echo -e "  jq            : ${SUCCESS}Installed${NC}"
+    fi
+    
+    # Check for imagesnap
+    if ! command -v imagesnap &> /dev/null; then
+        echo -e "  imagesnap     : ${ERROR}Not installed${NC}"
+        echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --dependencies${NC}'${NC}"
+    else
+        echo -e "  imagesnap     : ${SUCCESS}Installed${NC}"
+    fi
+    
+    # Check if config file exists
+    echo -e "\n${ACCENT}◇ CONFIGURATION${NC}"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo -e "  Status: ${ERROR}Not found${NC}"
+        echo -e "  Location: ${PRIMARY}$CONFIG_FILE${NC}"
+        echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --setup${NC}' to create default config${NC}"
+    else
+        echo -e "  Status: ${SUCCESS}Found${NC}"
+        echo -e "  Location: ${PRIMARY}$CONFIG_FILE${NC}"
+        
+        # Load the config file
+        source "$CONFIG_FILE"
+        
+        # Check email configuration if enabled
+        if [ "$EMAIL_ENABLED" = "yes" ]; then
+            if [ -z "$EMAIL_TO" ] || [ -z "$RESEND_API_KEY" ]; then
+                echo -e "  Email Setup: ${WARNING}Incomplete${NC}"
+                echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --config${NC}'${NC}"
+            else
+                echo -e "  Email Setup: ${SUCCESS}Complete${NC}"
+            fi
+        else
+            echo -e "  Email Setup: ${WARNING}Disabled${NC}"
+        fi
+        
+        # Check location configuration if enabled
+        if [ "$LOCATION_ENABLED" = "yes" ]; then
+            if [ "$LOCATION_CONFIGURED" != "yes" ]; then
+                echo -e "  Location Setup: ${WARNING}Incomplete${NC}"
+                echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --config${NC}'${NC}"
+            else
+                echo -e "  Location Setup: ${SUCCESS}Complete${NC}"
+            fi
+        else
+            echo -e "  Location Setup: ${WARNING}Disabled${NC}"
+        fi
+    fi
+    
+    echo -e "\n${SUCCESS}Diagnostics completed.${NC}"
+}
+
+#=================================================================
+# MAIN EXECUTION
+#=================================================================
+
+# Process command line arguments
+case "$1" in
+    --help)
+        display_help
+        ;;
+    --instructions)
+        display_instructions
+        ;;
+    --config)
+        "$SHARE_DIR/config.sh"
+        ;;
+    --setup)
+        "$SHARE_DIR/setup.sh"
+        ;;
+    --test)
+        echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
+        echo -e "${ACCENT}${BOLD}║             MANUAL MONITOR TEST                    ║${NC}"
+        echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
+        echo
+        echo -e "${WARNING}Running monitor script manually for testing...${NC}"
+        echo -e "${WARNING}This will capture photos, screenshots, and location data${NC}"
+        echo -e "${WARNING}based on your current configuration.${NC}"
+        echo
+        
+        # Check if config exists
+        if [ ! -f "$CONFIG_FILE" ]; then
+            echo -e "${ERROR}Configuration file not found!${NC}"
+            echo -e "${WARNING}Please run '${PRIMARY}mac-watcher --setup${NC}' first to create a default configuration.${NC}"
+            exit 1
+        fi
+        
+        # Run the monitor script directly
+        "$SHARE_DIR/monitor.sh"
+        
+        echo
+        echo -e "${SUCCESS}Test completed. Data has been saved according to your configuration.${NC}"
+        
+        # Extract BASE_DIR from config
+        source "$CONFIG_FILE"
+        SAVE_DIR=$(eval echo "$BASE_DIR")
+        
+        echo -e "${PRIMARY}To view the captured data, check:${NC} ${SUCCESS}$SAVE_DIR${NC}"
+        ;;
+    --dependencies)
+        check_dependencies
+        ;;
+    --diagnostics)
+        run_diagnostics
+        ;;
+    *)
+        display_help
+        exit 1
+        ;;
+esac
+
+exit 0 
