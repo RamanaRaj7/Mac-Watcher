@@ -18,9 +18,11 @@ class MacWatcher < Formula
     chmod 0755, pkgshare/"monitor.sh"
     chmod 0755, pkgshare/"setup.sh"
   end
+
   def post_install
     system bin/"mac-watcher", "--dependencies"
   end
+
   def caveats
     <<~EOS
       To complete setup, run:
@@ -38,6 +40,7 @@ class MacWatcher < Formula
         ~/.config/monitor.conf (default configuration)
     EOS
   end
+
   test do
     system bin/"mac-watcher", "--help"
   end
