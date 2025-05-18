@@ -13,7 +13,6 @@ else
     echo "Please run 'mac-watcher --setup' to create the configuration file."
     exit 1
 fi
-
 # Verify essential dependencies
 for cmd in jq imagesnap; do
     if ! command -v "$cmd" &> /dev/null; then
@@ -22,7 +21,6 @@ for cmd in jq imagesnap; do
         exit 1
     fi
 done
-
 # Verify location dependencies if enabled
 if [ "$LOCATION_ENABLED" = "yes" ] && [ "$LOCATION_METHOD" = "corelocation_cli" ]; then
     if ! command -v CoreLocationCLI &> /dev/null; then
@@ -31,7 +29,6 @@ if [ "$LOCATION_ENABLED" = "yes" ] && [ "$LOCATION_METHOD" = "corelocation_cli" 
         exit 1
     fi
 fi
-
 # Set defaults for any missing variables (for backward compatibility)
 : ${EMAIL_ENABLED:="no"}
 : ${INITIAL_EMAIL_ENABLED:="yes"} # New setting for initial email
@@ -54,7 +51,6 @@ fi
 : ${AUTO_DELETE_ENABLED:="no"}
 : ${AUTO_DELETE_DAYS:=7}
 : ${HTML_EMAIL_ENABLED:="yes"} # New setting for HTML email format
-
 # Directory setup
 YEAR=$(date +"%Y")
 MONTH=$(date +"%B")
@@ -63,7 +59,6 @@ AMPM=$(date +%p)
 HOUR=$(date +"%I" | sed 's/^0*//')  # remove any leading zero using 12-hour format
 MINUTE=$(date +"%M")
 SECOND=$(date +"%S")
-
 # Fix: Strip leading zeros for arithmetic operations
 MINUTE_NUM=${MINUTE#0}
 SECOND_NUM=${SECOND#0}
@@ -151,123 +146,227 @@ generate_html_initial_email() {
     
     # Generate HTML email template
     cat <<EOF
-<body style="margin:0 !important; padding:0 !important; width:100% !important;" class="force-bg-black body" bgcolor="#f6f6f7">
-  <div class="force-bg-black">
-    <!--[if mso | IE]>
-    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#f6f6f7"><tr><td>
-    <![endif]-->
-    <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-black" bgcolor="#f6f6f7">
-      <tr>
-        <td align="center" valign="top" style="padding:20px;">
-          <table role="presentation" width="480" border="0" cellpadding="0" cellspacing="0" class="force-bg-card force-border-radius-20" style="width:480px; max-width:480px; border-radius:20px !important;" bgcolor="#ffffff">
-            <!-- New Header Structure: Full Width Title Box -->
-            <tr>
-              <td class="force-bg-card force-border-radius-header" style="border-radius:20px 20px 0 0 !important; padding: 16px 24px;" bgcolor="#ffffff">
-                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="force-bg-header force-border-radius-16" style="border-radius:16px !important;" bgcolor="#eaf1fa">
-                  <tr>
-                    <td style="padding:15px 16px;"> 
-                      <span class="force-color-blue" style="font-size:18px; font-weight:bold;">Mac Access Alert</span>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-            <!-- User Profile -->
-            <tr><td style="padding:16px 24px 0 24px;">
-                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr><td width="60" height="60" valign="middle" align="center" class="force-bg-avatar force-border-radius-30" style="width:60px !important; height:60px !important; border-radius:30px !important;" bgcolor="#e6f0fd"><span class="force-color-blue" style="font-size:24px; font-weight:bold;">${first_initial}</span></td><td width="15" style="width:15px; font-size:1px; line-height:1px;"> </td><td valign="middle"><div class="force-color-white" style="font-size:24px; font-weight:bold; margin-bottom:5px;">${username}</div><div class="force-color-gray text-content-small">Last activity: ${current_time}</div></td></tr></table></td></tr>
-
-            <!-- Timestamp Info Section -->
-            <tr>
-              <td style="padding:24px 24px 16px 24px;">
-                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-section force-border-radius-16" style="min-width: 432px !important; border-radius:16px !important;" bgcolor="#f1f1f3">
-                  <tr>
-                    <td style="padding:16px;">
-                      <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
-                        <tr>
-                          <td class="force-color-gray text-content-small" style="padding-bottom:8px; width:60%;">Photo Timestamp</td>
-                          <td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:40%;">${photo_time}</td>
-                        </tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr>
-                          <td class="force-color-gray text-content-small" style="width:60%;">Screenshot Timestamp</td>
-                          <td align="right" class="force-color-white text-content-small" style="width:40%;">${shot_time}</td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- Location Info Section -->
-            <tr>
-              <td style="padding:0 24px 16px 24px;">
-                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-section force-border-radius-16" style="border-radius:16px !important;" bgcolor="#f1f1f3">
-                  <tr>
-                    <td style="padding:16px;">
-                      <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
-                        <tr><td class="force-color-gray text-content-small" style="padding-bottom:8px; width:40%;">Locality</td><td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:60%;">${locality}</td></tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr><td class="force-color-gray text-content-small" style="padding-bottom:8px; width:40%;">Sub-locality</td><td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:60%;">${sublocality}</td></tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr><td class="force-color-gray text-content-small" style="padding-bottom:8px; width:40%;">Administrative Area</td><td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:60%;">${admin_area}</td></tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr><td class="force-color-gray text-content-small" style="padding-bottom:8px; width:40%;">Postal Code</td><td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:60%;">${postal_code}</td></tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr><td class="force-color-gray text-content-small" style="padding-bottom:8px; width:40%;">Country</td><td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:60%;">${country}</td></tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr><td class="force-color-gray text-content-small" style="padding-bottom:8px; width:40%;">Coordinates</td><td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:60%;">${latitude}, ${longitude}</td></tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr><td class="force-color-gray text-content-small" style="padding-bottom:8px; width:40%;">Local Time</td><td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:60%;">${local_time}</td></tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr><td class="force-color-gray text-content-small" style="width:40%;">Time Zone</td><td align="right" class="force-color-white text-content-small" style="width:60%;">${timezone}</td></tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- Map Link Section -->
-            <tr>
-              <td style="padding:0 24px 16px 24px;">
-                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-section force-border-radius-16" style="min-width: 432px !important; border-radius:16px !important;" bgcolor="#f1f1f3">
-                  <tr>
-                    <td align="center" style="padding:16px;">
-                      <a href="${map_link}" target="_blank" class="force-color-blue text-content-small" style="text-decoration:none; display:block; width:100%;">View in Apple Maps</a>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- Network Info Section -->
-            <tr>
-              <td style="padding:0 24px 24px 24px;">
-                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-section force-border-radius-16" style="min-width: 432px !important; border-radius:16px !important;" bgcolor="#f1f1f3">
-                  <tr>
-                    <td style="padding:16px;">
-                      <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
-                        <tr><td class="force-color-gray text-content-small" style="padding-bottom:8px; width:50%;">WiFi SSID</td><td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:50%;">${wifi_ssid}</td></tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr><td class="force-color-gray text-content-small" style="padding-bottom:8px; width:50%;">Local IP Address</td><td align="right" class="force-color-white text-content-small" style="padding-bottom:8px; width:50%;">${local_ip}</td></tr>
-                        <tr><td colspan="2" style="padding-bottom:8px;"><div class="force-divider-color" style="height:1px; font-size:0px; line-height:0px;"> </div></td></tr>
-                        <tr><td class="force-color-gray text-content-small" style="width:50%;">Public IP Address</td><td align="right" class="force-color-white text-content-small" style="width:50%;">${public_ip}</td></tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-    <!--[if mso | IE]>
-    </td></tr></table>
-    <![endif]-->
-  </div>
-</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html dir="ltr" lang="en">
+  <head>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>Mac Access Alert</title>
+  </head>
+  <body style="margin:0 !important; padding:0 !important; width:100% !important;" class="force-bg-black body" bgcolor="#f6f6f7">
+    <div class="force-bg-black">
+      <!--[if mso | IE]>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#f6f6f7"><tr><td>
+      <![endif]-->
+      <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-black" bgcolor="#f6f6f7">
+        <tr>
+          <td align="center" valign="top" style="padding:20px;">
+            <table role="presentation" width="480" border="0" cellpadding="0" cellspacing="0" class="force-bg-card" style="width:480px; max-width:480px; border-radius:20px !important;" bgcolor="#ffffff">
+              <!-- Header: Full Width Title Box -->
+              <tr>
+                <td class="force-bg-card" style="border-radius:20px 20px 0 0 !important; padding: 16px 24px;" bgcolor="#ffffff">
+                  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-header" style="border-radius:16px !important;" bgcolor="#eaf1fa">
+                    <tr>
+                      <td style="padding:15px 16px;">
+                        <span style="font-size:18px; font-weight:bold; color:#007aff;">Mac Access Alert</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- User Profile -->
+              <tr>
+                <td style="padding:16px 24px 0 24px;">
+                  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="60" height="60" valign="middle" align="center" style="width:60px !important; height:60px !important; border-radius:30px !important; background-color:#e6f0fd;">
+                        <span style="font-size:24px; font-weight:bold; color:#007aff;">${first_initial}</span>
+                      </td>
+                      <td width="15" style="width:15px; font-size:1px; line-height:1px;"> </td>
+                      <td valign="middle">
+                        <div style="font-size:24px; font-weight:bold; color:#222222; margin-bottom:5px;">${username}</div>
+                        <div style="font-size:13px; color:#86868b;">Last activity: ${current_time}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Timestamp Info Section -->
+              <tr>
+                <td style="padding:24px 24px 16px 24px;">
+                  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="min-width: 432px !important; border-radius:16px !important;" bgcolor="#f1f1f3">
+                    <tr>
+                      <td style="padding:16px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="padding-bottom:8px; width:60%; font-size:13px; color:#86868b;">Photo Timestamp</td>
+                            <td align="right" style="padding-bottom:8px; width:40%; font-size:13px; color:#222222;">${photo_time}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="width:60%; font-size:13px; color:#86868b;">Screenshot Timestamp</td>
+                            <td align="right" style="width:40%; font-size:13px; color:#222222;">${shot_time}</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Location Info Section -->
+              <tr>
+                <td style="padding:0 24px 16px 24px;">
+                  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-radius:16px !important;" bgcolor="#f1f1f3">
+                    <tr>
+                      <td style="padding:16px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Locality</td>
+                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${locality}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Sub-locality</td>
+                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${sublocality}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Administrative Area</td>
+                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${admin_area}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Postal Code</td>
+                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${postal_code}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Country</td>
+                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${country}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Coordinates</td>
+                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${latitude}, ${longitude}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Local Time</td>
+                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${local_time}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="width:40%; font-size:13px; color:#86868b;">Time Zone</td>
+                            <td align="right" style="width:60%; font-size:13px; color:#222222;">${timezone}</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Map Link Section -->
+              <tr>
+                <td style="padding:0 24px 16px 24px;">
+                  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="min-width: 432px !important; border-radius:16px !important;" bgcolor="#f1f1f3">
+                    <tr>
+                      <td align="center" style="padding:16px;">
+                        <a href="${map_link}" target="_blank" style="text-decoration:none; display:block; width:100%; font-size:13px; color:#007aff;">View in Apple Maps</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Network Info Section -->
+              <tr>
+                <td style="padding:0 24px 24px 24px;">
+                  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="min-width: 432px !important; border-radius:16px !important;" bgcolor="#f1f1f3">
+                    <tr>
+                      <td style="padding:16px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="padding-bottom:8px; width:50%; font-size:13px; color:#86868b;">WiFi SSID</td>
+                            <td align="right" style="padding-bottom:8px; width:50%; font-size:13px; color:#222222;">${wifi_ssid}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-bottom:8px; width:50%; font-size:13px; color:#86868b;">Local IP Address</td>
+                            <td align="right" style="padding-bottom:8px; width:50%; font-size:13px; color:#222222;">${local_ip}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="width:50%; font-size:13px; color:#86868b;">Public IP Address</td>
+                            <td align="right" style="width:50%; font-size:13px; color:#222222;">${public_ip}</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Footer -->
+              <tr>
+                <td style="padding:0 24px 24px 24px;">
+                  <p style="font-size:11px; color:#86868b; text-align:center; margin:0; line-height:24px;">This is an automated security alert from your Mac device.</p>
+                  <p style="font-size:11px; color:#86868b; text-align:center; margin:0; line-height:24px;">© 2025 Mac-Watcher</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+      <!--[if mso | IE]>
+      </td></tr></table>
+      <![endif]-->
+    </div>
+  </body>
+</html>
 EOF
 }
 
@@ -327,58 +426,86 @@ generate_html_followup_email() {
     
     # Generate HTML email template
     cat <<EOF
-<body style="margin:0 !important; padding:0 !important; width:100% !important;" class="force-bg-black body" bgcolor="#f6f6f7">
-  <div class="force-bg-black">
-    <!--[if mso | IE]>
-    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#f6f6f7"><tr><td>
-    <![endif]-->
-    <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-black" bgcolor="#f6f6f7">
-      <tr>
-        <td align="center" valign="top" style="padding:20px;">
-          <table role="presentation" width="480" border="0" cellpadding="0" cellspacing="0" class="force-bg-card force-border-radius-20" style="width:480px; max-width:480px; border-radius:20px !important;" bgcolor="#ffffff">
-            <!-- New Header Structure: Full Width Title Box -->
-            <tr>
-              <td class="force-bg-card force-border-radius-header" style="border-radius:20px 20px 0 0 !important; padding: 16px 24px;" bgcolor="#ffffff">
-                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="force-bg-header force-border-radius-16" style="border-radius:16px !important;" bgcolor="#eaf1fa">
-                  <tr>
-                    <td style="padding:15px 16px;"> 
-                      <span class="force-color-blue" style="font-size:18px; font-weight:bold;">Mac Access Alert - Follow-up</span>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-            <!-- User Profile -->
-            <tr><td style="padding:16px 24px 0 24px;">
-                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr><td width="60" height="60" valign="middle" align="center" class="force-bg-avatar force-border-radius-30" style="width:60px !important; height:60px !important; border-radius:30px !important;" bgcolor="#e6f0fd"><span class="force-color-blue" style="font-size:24px; font-weight:bold;">${first_initial}</span></td><td width="15" style="width:15px; font-size:1px; line-height:1px;"> </td><td valign="middle"><div class="force-color-white" style="font-size:24px; font-weight:bold; margin-bottom:5px;">${username}</div><div class="force-color-gray text-content-small">Follow-up at: ${current_time}</div></td></tr></table></td></tr>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html dir="ltr" lang="en">
+  <head>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>Mac Access Alert - Follow-up</title>
+  </head>
+  <body style="margin:0 !important; padding:0 !important; width:100% !important;" class="force-bg-black body" bgcolor="#f6f6f7">
+    <div class="force-bg-black">
+      <!--[if mso | IE]>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#f6f6f7"><tr><td>
+      <![endif]-->
+      <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-black" bgcolor="#f6f6f7">
+        <tr>
+          <td align="center" valign="top" style="padding:20px;">
+            <table role="presentation" width="480" border="0" cellpadding="0" cellspacing="0" class="force-bg-card" style="width:480px; max-width:480px; border-radius:20px !important;" bgcolor="#ffffff">
+              <!-- Header: Full Width Title Box -->
+              <tr>
+                <td style="border-radius:20px 20px 0 0 !important; padding: 16px 24px;" bgcolor="#ffffff">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-radius:16px !important;" bgcolor="#eaf1fa">
+                    <tr>
+                      <td style="padding:15px 16px;"> 
+                        <span style="font-size:18px; font-weight:bold; color:#007aff;">Mac Access Alert - Follow-up</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <!-- User Profile -->
+              <tr>
+                <td style="padding:16px 24px 0 24px;">
+                  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="60" height="60" valign="middle" align="center" style="width:60px !important; height:60px !important; border-radius:30px !important; background-color:#e6f0fd;">
+                        <span style="font-size:24px; font-weight:bold; color:#007aff;">${first_initial}</span>
+                      </td>
+                      <td width="15" style="width:15px; font-size:1px; line-height:1px;"> </td>
+                      <td valign="middle">
+                        <div style="font-size:24px; font-weight:bold; color:#222222; margin-bottom:5px;">${username}</div>
+                        <div style="font-size:13px; color:#86868b;">Follow-up at: ${current_time}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
 
-            <!-- Timestamp Info Section -->
-            <tr>
-              <td style="padding:24px 24px 16px 24px;">
-                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-section force-border-radius-16" style="min-width: 432px !important; border-radius:16px !important;" bgcolor="#f1f1f3">
-                  <tr>
-                    <td style="padding:16px;">
-                      <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
-                        <tr>
-                          <td class="force-color-gray text-content-small" style="width:60%;">Follow-up Screenshot Timestamp</td>
-                          <td align="right" class="force-color-white text-content-small" style="width:40%;">${shot_time}</td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-    <!--[if mso | IE]>
-    </td></tr></table>
-    <![endif]-->
-  </div>
-</body>
+              <!-- Timestamp Info Section -->
+              <tr>
+                <td style="padding:24px 24px 16px 24px;">
+                  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="min-width: 432px !important; border-radius:16px !important;" bgcolor="#f1f1f3">
+                    <tr>
+                      <td style="padding:16px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="width:60%; font-size:13px; color:#86868b;">Follow-up Screenshot Timestamp</td>
+                            <td align="right" style="width:40%; font-size:13px; color:#222222;">${shot_time}</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <!-- footer -->
+              <tr>
+                <td style="padding:0 24px 24px 24px;">
+                  <p style="font-size:11px; color:#86868b; text-align:center; margin:0; line-height:24px;">This is an automated security alert from your Mac device.</p>
+                  <p style="font-size:11px; color:#86868b; text-align:center; margin:0; line-height:24px;">© 2025 Mac-Watcher</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+      <!--[if mso | IE]>
+      </td></tr></table>
+      <![endif]-->
+    </div>
+  </body>
+</html>
 EOF
 }
 

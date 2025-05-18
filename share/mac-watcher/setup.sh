@@ -30,7 +30,7 @@ CONFIG_FILE="$HOME/.config/monitor.conf"
 show_header() {
     clear
     echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${ACCENT}${BOLD}║                 MONITOR SETUP                      ║${NC}"
+    echo -e "${ACCENT}${BOLD}║                   MONITOR SETUP                    ║${NC}"
     echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
     echo
 }
@@ -211,7 +211,7 @@ main() {
     
     # Final instructions
     echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${ACCENT}${BOLD}║               SETUP COMPLETE                       ║${NC}"
+    echo -e "${ACCENT}${BOLD}║                   SETUP COMPLETE                   ║${NC}"
     echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${PRIMARY}${BOLD}Next steps to complete your setup:${NC}"
