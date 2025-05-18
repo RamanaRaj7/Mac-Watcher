@@ -50,6 +50,10 @@ PKG_NAME="mac-watcher-$VERSION"
 DIST_DIR="dist"
 ARCHIVE_NAME="$PKG_NAME.tar.gz"
 
+# Use correct GitHub repository name capitalization
+REPO_NAME="Mac-Watcher"
+GITHUB_URL="https://github.com/RamanaRaj7/${REPO_NAME}/archive/refs/tags/v$VERSION.tar.gz"
+
 echo "Packaging mac-watcher v$VERSION"
 
 # Create distribution directory
@@ -76,7 +80,6 @@ echo "SHA256 of local package: $LOCAL_CHECKSUM"
 
 # Check if GitHub release exists and get its checksum
 GITHUB_CHECKSUM=""
-GITHUB_URL="https://github.com/ramanaraj7/mac-watcher/archive/refs/tags/v$VERSION.tar.gz"
 
 if [ "$SKIP_GITHUB_CHECK" = false ] && [ "$FORCE_LOCAL" = false ]; then
     if command -v curl &> /dev/null; then
@@ -133,8 +136,13 @@ else
     CHECKSUM_SOURCE="local package"
 fi
 
-# Update the formula with the correct SHA256
+# Update the formula with the correct SHA256 and URL
 echo "Updating Formula/mac-watcher.rb with the SHA256 checksum from $CHECKSUM_SOURCE"
+if ! sed -i.bak "s|url \"https://github.com/[^/]*/[^/]*/archive/refs/tags/v$VERSION.tar.gz\"|url \"$GITHUB_URL\"|" Formula/mac-watcher.rb; then
+    echo "ERROR: Failed to update URL in formula"
+    exit 1
+fi
+
 if ! sed -i.bak "s/sha256 \"[0-9a-f]*\"/sha256 \"$CHECKSUM_TO_USE\"/" Formula/mac-watcher.rb; then
     echo "ERROR: Failed to update SHA256 in formula"
     exit 1
@@ -154,7 +162,9 @@ rm -rf "$TEMP_DIR"
 
 echo "============================================================"
 echo "Package created successfully: $DIST_DIR/$ARCHIVE_NAME"
-echo "Formula updated with SHA256: $CHECKSUM_TO_USE"
+echo "Formula updated with:"
+echo "URL: $GITHUB_URL"
+echo "SHA256: $CHECKSUM_TO_USE"
 echo "SHA256 source: $CHECKSUM_SOURCE"
 echo "============================================================"
 echo ""
@@ -169,4 +179,4 @@ echo "3. Update your Homebrew tap:"
 echo "   cp ./Formula/mac-watcher.rb /path/to/homebrew-tap/Formula/"
 echo ""
 echo "4. Commit and push changes to both repositories"
-echo "============================================================" 
+echo "============================================================"
