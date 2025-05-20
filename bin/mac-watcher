@@ -147,6 +147,16 @@ check_dependencies() {
         echo -e "  jq            : ${SUCCESS}Installed${NC}"
     fi
     
+    # Check for coreutils
+    if ! brew list coreutils &> /dev/null; then
+        echo -e "  coreutils     : ${WARNING}Not installed${NC}"
+        echo -e "  ${WARNING}Installing coreutils...${NC}"
+        brew install coreutils
+        echo -e "  coreutils     : ${SUCCESS}Installed successfully${NC}"
+    else
+        echo -e "  coreutils     : ${SUCCESS}Installed${NC}"
+    fi
+    
     # Check for imagesnap (webcam capture)
     echo -e "\n${ACCENT}◇ MEDIA CAPTURE${NC}"
     if ! command -v imagesnap &> /dev/null; then
@@ -219,6 +229,14 @@ run_diagnostics() {
         echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --dependencies${NC}'${NC}"
     else
         echo -e "  jq            : ${SUCCESS}Installed${NC}"
+    fi
+    
+    # Check for coreutils
+    if ! brew list coreutils &> /dev/null; then
+        echo -e "  coreutils     : ${ERROR}Not installed${NC}"
+        echo -e "  ${WARNING}To fix: Run '${PRIMARY}mac-watcher --dependencies${NC}'${NC}"
+    else
+        echo -e "  coreutils     : ${SUCCESS}Installed${NC}"
     fi
     
     # Check for imagesnap

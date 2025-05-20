@@ -137,6 +137,7 @@ Mac-Watcher automatically installs and uses the following dependencies:
 - **CoreLocationCLI**: Captures location information
 - **jq**: Processes JSON data
 - **imagesnap**: Captures webcam photos
+- **coreutils**: Provides enhanced file and text utilities
 
 All dependencies are automatically installed during the Homebrew installation or when you run `mac-watcher --dependencies`.
 

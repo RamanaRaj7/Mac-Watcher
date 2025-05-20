@@ -116,7 +116,7 @@ create_wakeup_file() {
 # It will be executed by sleepwatcher when your Mac wakes from sleep
 
 # Run the mac-watcher monitor script
-"$MONITOR_SCRIPT"
+"$MONITOR_SCRIPT" &
 EOL
     
     # Make it executable
