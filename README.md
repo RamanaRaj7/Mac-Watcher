@@ -1,5 +1,7 @@
 # Mac-Watcher 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/RamanaRaj7/Mac-Watcher)
+
+
 if you find it intresting a ⭐️ on GitHub would mean a lot!
 
 A macOS monitoring tool that creates email alerts and captures system information when your Mac wakes from sleep.
