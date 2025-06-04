@@ -51,6 +51,17 @@ fi
 : ${AUTO_DELETE_ENABLED:="no"}
 : ${AUTO_DELETE_DAYS:=7}
 : ${HTML_EMAIL_ENABLED:="yes"} # New setting for HTML email format
+
+# Print key configuration settings for debugging
+echo "Key configuration settings:"
+echo "- EMAIL_ENABLED: $EMAIL_ENABLED"
+echo "- LOCATION_ENABLED: $LOCATION_ENABLED"
+echo "- LOCATION_METHOD: $LOCATION_METHOD"
+echo "- NETWORK_INFO_ENABLED: $NETWORK_INFO_ENABLED"
+echo "- WEBCAM_ENABLED: $WEBCAM_ENABLED"
+echo "- SCREENSHOT_ENABLED: $SCREENSHOT_ENABLED"
+echo "- FOLLOWUP_SCREENSHOT_ENABLED: $FOLLOWUP_SCREENSHOT_ENABLED"
+
 # Directory setup
 YEAR=$(date +"%Y")
 MONTH=$(date +"%B")
@@ -77,14 +88,23 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 
 UTC_TIME=$(date -u "+%Y-%m-%d %H:%M:%S")
 LOCAL_TIME=$(date "+%Y-%m-%d %H:%M:%S")
+HR_TIME=$(date '+%I:%M:%S %p')
 CURRENT_DAY=$(date +"%A")
 CURRENT_USER=$(whoami)
-
-echo "Script started at ${UTC_TIME} UTC (${LOCAL_TIME})"
+echo "Script started at ${UTC_TIME} UTC (${LOCAL_TIME}) (${HR_TIME})"
 echo "Current user: ${CURRENT_USER}"
 echo "Current day: ${CURRENT_DAY}"
 
 initial_email_sent=false
+
+# Add this near the beginning of the script, after the directory setup section
+# Generate a unique session ID
+SESSION_ID=$(date +"%Y%m%d%H%M%S")_$$
+echo "Session ID: $SESSION_ID"
+
+# Create attachments directory
+ATTACHMENTS_DIR="$TARGET_DIR/attachments"
+mkdir -p "$ATTACHMENTS_DIR"
 
 #############################
 # Helper Functions for HTML Email
@@ -95,7 +115,7 @@ generate_html_initial_email() {
     local shot_time="$3"
     local first_initial=$(echo "${username:0:1}" | tr '[:lower:]' '[:upper:]')
     local current_time=$(date '+%I:%M:%S %p')
-    
+
     # Extract location data
     local locality="Not available"
     local sublocality="Not available"
@@ -109,7 +129,7 @@ generate_html_initial_email() {
     local wifi_ssid="Not available"
     local local_ip="Not available"
     local public_ip="Not available"
-    
+
     # Parse location data from file if available
     if [ "$LOCATION_ENABLED" = "yes" ] && [ -f "$TARGET_DIR/location_output.txt" ]; then
         while IFS= read -r line; do
@@ -139,6 +159,35 @@ generate_html_initial_email() {
                 public_ip=$(echo "$line" | sed 's/Public IP Address: *//')
             fi
         done < "$TARGET_DIR/location_output.txt"
+    else
+        locality="Disabled"
+        sublocality="Disabled"
+        admin_area="Disabled"
+        postal_code="Disabled"
+        country="Disabled"
+        latitude="Disabled"
+        longitude="Disabled"
+        local_time="Disabled"
+        timezone="Disabled"
+    fi
+    
+    # Set network info as disabled if not enabled
+    if [ "$NETWORK_INFO_ENABLED" != "yes" ]; then
+        wifi_ssid="Disabled"
+        local_ip="Disabled"
+        public_ip="Disabled"
+    fi
+    
+    # Set webcam and screenshot status
+    local photo_status="$photo_time"
+    local shot_status="$shot_time"
+    
+    if [ "$WEBCAM_ENABLED" != "yes" ]; then
+        photo_status="Disabled"
+    fi
+    
+    if [ "$SCREENSHOT_ENABLED" != "yes" ]; then
+        shot_status="Disabled"
     fi
     
     # Create map link
@@ -151,7 +200,7 @@ generate_html_initial_email() {
   <head>
     <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
     <meta name="x-apple-disable-message-reformatting" />
-    <title>Mac Access Alert</title>
+    <title>Mac Watcher Alert</title>
   </head>
   <body style="margin:0 !important; padding:0 !important; width:100% !important;" class="force-bg-black body" bgcolor="#f6f6f7">
     <div class="force-bg-black">
@@ -168,7 +217,7 @@ generate_html_initial_email() {
                   <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-header" style="border-radius:16px !important;" bgcolor="#eaf1fa">
                     <tr>
                       <td style="padding:15px 16px;">
-                        <span style="font-size:18px; font-weight:bold; color:#007aff;">Mac Access Alert</span>
+                        <span style="font-size:18px; font-weight:bold; color:#007aff;">Mac Watcher Alert</span>
                       </td>
                     </tr>
                   </table>
@@ -202,7 +251,7 @@ generate_html_initial_email() {
                         <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
                           <tr>
                             <td style="padding-bottom:8px; width:60%; font-size:13px; color:#86868b;">Photo Timestamp</td>
-                            <td align="right" style="padding-bottom:8px; width:40%; font-size:13px; color:#222222;">${photo_time}</td>
+                            <td align="right" style="padding-bottom:8px; width:40%; font-size:13px; color:#222222;">${photo_status}</td>
                           </tr>
                           <tr>
                             <td colspan="2" style="padding-bottom:8px;">
@@ -211,7 +260,7 @@ generate_html_initial_email() {
                           </tr>
                           <tr>
                             <td style="width:60%; font-size:13px; color:#86868b;">Screenshot Timestamp</td>
-                            <td align="right" style="width:40%; font-size:13px; color:#222222;">${shot_time}</td>
+                            <td align="right" style="width:40%; font-size:13px; color:#222222;">${shot_status}</td>
                           </tr>
                         </table>
                       </td>
@@ -273,8 +322,17 @@ generate_html_initial_email() {
                             </td>
                           </tr>
                           <tr>
-                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Coordinates</td>
-                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${latitude}, ${longitude}</td>
+                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Latitude</td>
+                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${latitude}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-bottom:8px;">
+                              <div style="height:1px; background-color:#e0e0e3;"></div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-bottom:8px; width:40%; font-size:13px; color:#86868b;">Longitude</td>
+                            <td align="right" style="padding-bottom:8px; width:60%; font-size:13px; color:#222222;">${longitude}</td>
                           </tr>
                           <tr>
                             <td colspan="2" style="padding-bottom:8px;">
@@ -307,7 +365,11 @@ generate_html_initial_email() {
                   <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="min-width: 432px !important; border-radius:16px !important;" bgcolor="#f1f1f3">
                     <tr>
                       <td align="center" style="padding:16px;">
-                        <a href="${map_link}" target="_blank" style="text-decoration:none; display:block; width:100%; font-size:13px; color:#007aff;">View in Apple Maps</a>
+                        $(if [ "$LOCATION_ENABLED" = "yes" ]; then
+                          echo "<a href=\"${map_link}\" target=\"_blank\" style=\"text-decoration:none; display:block; width:100%; font-size:13px; color:#007aff;\">View in Apple Maps</a>"
+                        else
+                          echo "<span style=\"display:block; width:100%; font-size:13px; color:#86868b;\">Location tracking Disabled</span>"
+                        fi)
                       </td>
                     </tr>
                   </table>
@@ -419,6 +481,30 @@ generate_html_followup_email() {
                 public_ip=$(echo "$line" | sed 's/Public IP Address: *//')
             fi
         done < "$TARGET_DIR/location_output.txt"
+    else
+        locality="Disabled"
+        sublocality="Disabled"
+        admin_area="Disabled"
+        postal_code="Disabled"
+        country="Disabled"
+        latitude="Disabled"
+        longitude="Disabled"
+        local_time="Disabled"
+        timezone="Disabled"
+    fi
+    
+    # Set network info as disabled if not enabled
+    if [ "$NETWORK_INFO_ENABLED" != "yes" ]; then
+        wifi_ssid="Disabled"
+        local_ip="Disabled"
+        public_ip="Disabled"
+    fi
+    
+    # Set screenshot status
+    local shot_status="$shot_time"
+    
+    if [ "$SCREENSHOT_ENABLED" != "yes" ] || [ "$FOLLOWUP_SCREENSHOT_ENABLED" != "yes" ]; then
+        shot_status="Disabled"
     fi
     
     # Create map link
@@ -431,7 +517,7 @@ generate_html_followup_email() {
   <head>
     <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
     <meta name="x-apple-disable-message-reformatting" />
-    <title>Mac Access Alert - Follow-up</title>
+    <title>Mac Watcher Alert - Follow-up</title>
   </head>
   <body style="margin:0 !important; padding:0 !important; width:100% !important;" class="force-bg-black body" bgcolor="#f6f6f7">
     <div class="force-bg-black">
@@ -448,7 +534,7 @@ generate_html_followup_email() {
                   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-radius:16px !important;" bgcolor="#eaf1fa">
                     <tr>
                       <td style="padding:15px 16px;"> 
-                        <span style="font-size:18px; font-weight:bold; color:#007aff;">Mac Access Alert - Follow-up</span>
+                        <span style="font-size:18px; font-weight:bold; color:#007aff;">Mac Watcher Alert - Follow-up</span>
                       </td>
                     </tr>
                   </table>
@@ -481,7 +567,7 @@ generate_html_followup_email() {
                         <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
                           <tr>
                             <td style="width:60%; font-size:13px; color:#86868b;">Follow-up Screenshot Timestamp</td>
-                            <td align="right" style="width:40%; font-size:13px; color:#222222;">${shot_time}</td>
+                            <td align="right" style="width:40%; font-size:13px; color:#222222;">${shot_status}</td>
                           </tr>
                         </table>
                       </td>
@@ -712,9 +798,24 @@ is_email_time_allowed() {
 # Helper Function: Check Internet Connectivity
 #############################
 check_internet() {
-    if ping -c 1 8.8.8.8 > /dev/null 2>&1; then
+    echo "Checking internet connectivity..." >&2
+    if ping -c 1 -W 3 api.resend.com > /dev/null 2>&1; then
+        echo "Internet connection available (ping to api.resend.com successful)" >&2
         return 0
     else
+        echo "No internet connection available (ping to api.resend.com failed)" >&2
+        
+        # Try alternate method with curl to Google
+        if command -v curl >/dev/null 2>&1; then
+            echo "Trying alternate connectivity check with curl..." >&2
+            if curl -s --connect-timeout 3 -I https://api.resend.com >/dev/null 2>&1; then
+                echo "Internet connection available (curl to api.resend.com successful)" >&2
+                return 0
+            else
+                echo "No internet connection available (curl to api.resend.com failed)" >&2
+            fi
+        fi
+        
         return 1
     fi
 }
@@ -763,10 +864,9 @@ save_json_debug() {
 #############################
 collect_network_info() {
     if [ "$NETWORK_INFO_ENABLED" != "yes" ]; then
+        echo "Network info collection function called but NETWORK_INFO_ENABLED is not 'yes'" >&2
         return 1
     fi
-    
-    echo
     
     # Initialize variables with default values
     local wifi_ssid="Not available"
@@ -775,32 +875,62 @@ collect_network_info() {
     
     # Get WiFi SSID
     if command -v ipconfig >/dev/null 2>&1; then
+        echo "Getting WiFi SSID using ipconfig..." >&2
         local ssid_output=$(ipconfig getsummary en0 2>/dev/null | awk '/ SSID/ {print $NF}')
         if [ -n "$ssid_output" ]; then
             wifi_ssid="$ssid_output"
+            echo "Found WiFi SSID: $wifi_ssid" >&2
+        else
+            echo "Failed to get WiFi SSID" >&2
         fi
+    else
+        echo "ipconfig command not available for SSID detection" >&2
     fi
     
     # Get local IP address
     if command -v ipconfig >/dev/null 2>&1; then
+        echo "Getting local IP address using ipconfig..." >&2
         local ip_output=$(ipconfig getifaddr en0 2>/dev/null)
         if [ -n "$ip_output" ]; then
             local_ip="$ip_output"
+            echo "Found local IP: $local_ip" >&2
+        else
+            echo "Failed to get local IP address from en0" >&2
+            # Try alternate interface
+            ip_output=$(ipconfig getifaddr en1 2>/dev/null)
+            if [ -n "$ip_output" ]; then
+                local_ip="$ip_output"
+                echo "Found local IP from en1: $local_ip" >&2
+            else
+                echo "Failed to get local IP address from en1 as well" >&2
+            fi
         fi
+    else
+        echo "ipconfig command not available for IP detection" >&2
     fi
     
     # Get public IP address (only if internet is available)
     if check_internet; then
+        echo "Internet connection available, getting public IP..." >&2
         if command -v curl >/dev/null 2>&1; then
             local public_ip_output=$(curl -s ipinfo.io/ip 2>/dev/null)
             if [ -n "$public_ip_output" ]; then
                 public_ip="$public_ip_output"
+                echo "Found public IP: $public_ip" >&2
+            else
+                echo "Failed to get public IP from ipinfo.io" >&2
             fi
+        else
+            echo "curl command not available for public IP detection" >&2
         fi
+    else
+        echo "No internet connection available, skipping public IP detection" >&2
     fi
     
+    echo "Network information collection completed" >&2
     # Return the formatted network information
     cat <<EOF
+
 
 Network Information
 
@@ -901,8 +1031,12 @@ EOF
     
     # Add network information if enabled
     if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
+        echo "NETWORK_INFO_ENABLED is yes, collecting network information..."
         local network_info=$(collect_network_info)
         formatted_location+="$network_info"
+        echo "Network information added to location output"
+    else
+        echo "NETWORK_INFO_ENABLED is not enabled, skipping network information collection"
     fi
     
     # Save the formatted location data to a file
@@ -943,6 +1077,7 @@ capture_location_shortcuts() {
     
     # Try to extract location data if shortcut succeeded
     if [ $SHORTCUT_EXIT_CODE -eq 0 ]; then
+        echo "Location shortcut executed successfully, extracting data..."
         # Simplified extraction approach using grep and sed
         LAT=$(grep -o '"latitude":"[^"]*"' "$TEMP_OUTPUT" | sed 's/"latitude":"//;s/"//g' | tr -d '\n\r' | xargs)
         LON=$(grep -o '"longitude":"[^"]*"' "$TEMP_OUTPUT" | sed 's/"longitude":"//;s/"//g' | tr -d '\n\r' | xargs)
@@ -951,11 +1086,16 @@ capture_location_shortcuts() {
         POSTAL_CODE=$(grep -o '"postalCode":[[:space:]]*"[^"]*"' "$TEMP_OUTPUT" | sed 's/"postalCode":[[:space:]]*"//;s/"//g' | tr -d '\n\r' | xargs)
         COUNTRY=$(grep -o '"country":[[:space:]]*"[^"]*"' "$TEMP_OUTPUT" | sed 's/"country":[[:space:]]*"//;s/"//g' | tr -d '\n\r' | xargs)
         
+        echo "Extracted data - LAT: ${LAT:-none}, LON: ${LON:-none}, LOCALITY: ${LOCALITY:-none}, ADMIN_AREA: ${ADMIN_AREA:-none}"
+        
         # Special handling for subLocality - extract the first line/word
         local SUB_LOC_LINE=$(grep -n '"subLocality":' "$TEMP_OUTPUT" | cut -d':' -f1)
         if [ -n "$SUB_LOC_LINE" ]; then
             # Get the line and extract just the first word after the opening quote
             SUBLOCALITY=$(sed -n "${SUB_LOC_LINE}p" "$TEMP_OUTPUT" | sed -E 's/.*"subLocality":[[:space:]]*"([^[:space:]^"]+).*/\1/')
+            echo "Extracted sublocality: ${SUBLOCALITY:-none}"
+        else
+            echo "No subLocality found in location data"
         fi
         
         # Set defaults for any missing fields
@@ -967,8 +1107,10 @@ capture_location_shortcuts() {
         
         if [ -n "$LAT" ] && [ -n "$LON" ]; then
             LOCATION_STATUS="Location data available"
+            echo "Successfully extracted coordinates: $LAT, $LON"
         else
             echo "Warning: Could not extract location coordinates from shortcut output."
+            echo "Raw output first 100 chars: $(head -c 100 "$TEMP_OUTPUT")"
             LOCATION_STATUS="Location coordinates unavailable"
         fi
     else
@@ -1024,15 +1166,16 @@ EOF
     # Add network information using the existing collect_network_info function
     local network_info=""
     if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
+        echo "NETWORK_INFO_ENABLED is yes, collecting network information for Apple Shortcuts location..."
         network_info=$(collect_network_info)
+        echo "Network information collected for Apple Shortcuts location"
+    else
+        echo "NETWORK_INFO_ENABLED is not enabled, skipping network information collection"
     fi
     
     # Combine location and network info
     echo "${location_output}${network_info}" > "$TARGET_DIR/location_output.txt"
-    
-    # Always save raw output for debugging
-    [ -f "$TEMP_OUTPUT" ] && cp "$TEMP_OUTPUT" "$TARGET_DIR/location_raw_output.txt"
-    
+
     # Return success unless both location and network info failed
     if [ -n "$LAT" ] || [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
         echo "Data capture completed successfully."
@@ -1085,6 +1228,44 @@ capture_location_if_email_disabled() {
 }
 
 #############################
+# NEW Function: Ensure Network Info Is Available
+#############################
+ensure_network_info() {
+    if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
+        # Check if network info is already in location_output.txt
+        if [ -f "$TARGET_DIR/location_output.txt" ] && grep -q "Network Information" "$TARGET_DIR/location_output.txt"; then
+            echo "Network information already exists in location data" >&2
+            return 0
+        fi
+        
+        echo "Collecting network information separately..." >&2
+        local network_info=$(collect_network_info)
+        
+        # If location file exists, append network info
+        if [ -f "$TARGET_DIR/location_output.txt" ]; then
+            echo "Appending network information to existing location data" >&2
+            echo "$network_info" >> "$TARGET_DIR/location_output.txt"
+        else
+            # Create a minimal location file with just network info
+            echo "Creating new location data file with network information" >&2
+            cat > "$TARGET_DIR/location_output.txt" << EOF
+Location Details
+
+Status: Location data unavailable
+
+Time
+
+Local Time: $(date "+%Y-%m-%d %H:%M:%S %z")
+Time Zone: $(date +%Z)
+$network_info
+EOF
+        fi
+        return 0
+    fi
+    return 1
+}
+
+#############################
 # Utility Functions: Queue Emails
 #############################
 queue_initial_email() {
@@ -1094,17 +1275,55 @@ queue_initial_email() {
     local photo_local="$4"
     local shot_utc="$5"
     local shot_local="$6"
-    local filename="$MAIL_QUEUE_DIR/initial_$(date +%s)_$$.mail"
-    echo "initial|$photo|$screenshot|$photo_utc|$photo_local|$shot_utc|$shot_local" > "$filename"
+    
+    # Copy files to attachments directory with session ID
+    local photo_copy="$ATTACHMENTS_DIR/photo_${SESSION_ID}.jpg"
+    local screenshot_copy="$ATTACHMENTS_DIR/screenshot_${SESSION_ID}.jpg"
+    
+    # Only copy if files exist and have content
+    if [ -f "$photo" ] && [ -s "$photo" ]; then
+        cp "$photo" "$photo_copy"
+        echo "Copied photo to $photo_copy" >&2
+    else
+        photo_copy=""
+    fi
+    
+    if [ -f "$screenshot" ] && [ -s "$screenshot" ]; then
+        cp "$screenshot" "$screenshot_copy"
+        echo "Copied screenshot to $screenshot_copy" >&2
+    else
+        screenshot_copy=""
+    fi
+    
+    local filename="$MAIL_QUEUE_DIR/initial_${SESSION_ID}_$$.mail"
+    echo "initial|$photo_copy|$screenshot_copy|$photo_utc|$photo_local|$shot_utc|$shot_local" > "$filename"
     echo "Queued initial email: $filename"
 }
 
 queue_followup_email() {
+    # Check if follow-up email was already sent
+    if [ -f "$TARGET_DIR/.followup_email_sent" ]; then
+        echo "Follow-up email was already sent. Not queuing another one."
+        return 1
+    fi
+    
     local screenshot="$1"
     local shot_utc="$2"
     local shot_local="$3"
-    local filename="$MAIL_QUEUE_DIR/followup_$(date +%s)_$$.mail"
-    echo "followup|$screenshot|$shot_utc|$shot_local" > "$filename"
+    
+    # Copy file to attachments directory with session ID
+    local screenshot_copy="$ATTACHMENTS_DIR/followup_screenshot_${SESSION_ID}.jpg"
+    
+    # Only copy if file exists and has content
+    if [ -f "$screenshot" ] && [ -s "$screenshot" ]; then
+        cp "$screenshot" "$screenshot_copy"
+        echo "Copied follow-up screenshot to $screenshot_copy" >&2
+    else
+        screenshot_copy=""
+    fi
+    
+    local filename="$MAIL_QUEUE_DIR/followup_${SESSION_ID}_$$.mail"
+    echo "followup|$screenshot_copy|$shot_utc|$shot_local" > "$filename"
     echo "Queued follow-up email: $filename"
 }
 
@@ -1159,9 +1378,14 @@ send_initial_email_from_queue() {
     if [ "$LOCATION_ENABLED" = "yes" ]; then
         capture_location
     fi
+    
+    # Always ensure network info is available if enabled
+    if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
+        ensure_network_info
+    fi
 
     local current_time=$(date '+%I:%M:%S %p')
-    local email_subject="Mac Access Alert - ${CURRENT_USER} at ${current_time}"
+    local email_subject="Mac Watcher Alert - ${CURRENT_USER} at ${HR_TIME}"
     
     local temp_json="$TARGET_DIR/.temp_email.json"
     
@@ -1181,7 +1405,7 @@ send_initial_email_from_queue() {
 EOF
     else
         # Get location information for plain text email
-        local location_info="Location tracking disabled"
+        local location_info="Location tracking Disabled"
         if [ "$LOCATION_ENABLED" = "yes" ] && [ -f "$TARGET_DIR/location_output.txt" ] && [ -s "$TARGET_DIR/location_output.txt" ]; then
             location_info=$(cat "$TARGET_DIR/location_output.txt")
         else
@@ -1189,7 +1413,7 @@ EOF
         fi
 
         # Build email body with plain text format
-        local email_body="Mac Access Alert
+        local email_body="Mac Watcher Alert
 
 User Information
 User: ${CURRENT_USER}
@@ -1198,7 +1422,10 @@ Media Status
 "
         
         # Display photo timestamp (or Not available)
-        if [ "$photo_has_failed" = true ]; then
+        if [ "$WEBCAM_ENABLED" != "yes" ]; then
+            email_body+="Photo timestamp: Disabled
+"
+        elif [ "$photo_has_failed" = true ]; then
             email_body+="Photo timestamp: Not available
 "
         else
@@ -1207,8 +1434,11 @@ Media Status
         fi
         
         # Display screenshot timestamp (or Not available)
-        if [ "$screenshot_has_failed" = true ]; then
-                        email_body+="Screenshot timestamp: Not available
+        if [ "$SCREENSHOT_ENABLED" != "yes" ]; then
+            email_body+="Screenshot timestamp: Disabled
+"
+        elif [ "$screenshot_has_failed" = true ]; then
+            email_body+="Screenshot timestamp: Not available
 "
         else
             email_body+="Screenshot timestamp: ${shot_local} (Local) / ${shot_utc} (UTC)
@@ -1220,8 +1450,17 @@ Media Status
 Location Information
 ${location_info}"
 
-        # Create email JSON with proper HTML escaping
-        # Convert newlines in the body to <br> tags for HTML rendering
+        # Add network information status
+        if [ "$NETWORK_INFO_ENABLED" != "yes" ]; then
+            email_body+="
+
+Network Information
+WiFi SSID: Disabled
+Local IP Address: Disabled
+Public IP Address: Disabled"
+        fi
+        
+        # Create email JSON with proper escaping
         local escaped_body=$(echo "$email_body" | sed 's/"/\\"/g' | sed 's/$/\\n/g' | tr -d '\n')
         
         # Setup JSON with plain text content
@@ -1272,6 +1511,7 @@ EOF
     # Save JSON for debugging
     save_json_debug "$temp_json" "$TARGET_DIR/debug_initial_email.json"
 
+    echo "Sending initial email to ${EMAIL_TO} from ${EMAIL_FROM}..."
     local response
     response=$(curl -s -w "%{http_code}" -X POST \
        -H "Authorization: Bearer ${RESEND_API_KEY}" \
@@ -1282,16 +1522,16 @@ EOF
 
     local http_code=${response: -3}
     if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
-        echo "Initial email sent successfully from queue."
+        echo "Initial email sent successfully. HTTP code: $http_code"
         echo "$email_subject" > "$TARGET_DIR/.subject"
-        # Mark initial email as sent
         initial_email_sent=true
         # Create a flag file to indicate initial email was sent
         touch "$TARGET_DIR/.initial_email_sent"
         return 0
     else
-        echo "Failed to send initial email from queue. Status code: $http_code"
+        echo "Failed to send initial email. Status code: $http_code"
         echo "Response: ${response%???}"
+        echo "Check your Resend API key and email configuration"
         return 1
     fi
 }
@@ -1299,6 +1539,12 @@ EOF
 send_followup_email_from_queue() {
     if [ "$EMAIL_ENABLED" != "yes" ] || [ "$FOLLOWUP_EMAIL_ENABLED" != "yes" ]; then
         echo "Email notifications or follow-up emails disabled in configuration."
+        return 1
+    fi
+    
+    # Check if follow-up email was already sent by looking for the flag file
+    if [ -f "$TARGET_DIR/.followup_email_sent" ]; then
+        echo "Follow-up email was already sent. Skipping duplicate."
         return 1
     fi
     
@@ -1326,11 +1572,17 @@ send_followup_email_from_queue() {
     local screenshot="$1"
     local shot_utc="$2"
     local shot_local="$3"
+    
+    # Always ensure network info is available if enabled
+    if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
+        ensure_network_info
+    fi
+    
     local original_subject=""
     if [ -f "$TARGET_DIR/.subject" ]; then
         original_subject=$(cat "$TARGET_DIR/.subject")
     else
-        original_subject="Mac Access Alert - ${CURRENT_USER}"
+        original_subject="Mac Watcher Alert - ${CURRENT_USER}"
     fi
 
     local screenshot_has_failed=false
@@ -1356,7 +1608,7 @@ send_followup_email_from_queue() {
 EOF
     else
         # Get location information for plain text
-        local location_info="Location tracking disabled"
+        local location_info="Location tracking Disabled"
         if [ "$LOCATION_ENABLED" = "yes" ] && [ -f "$TARGET_DIR/location_output.txt" ] && [ -s "$TARGET_DIR/location_output.txt" ]; then
             location_info=$(cat "$TARGET_DIR/location_output.txt")
         else
@@ -1373,11 +1625,14 @@ Media Status
 "
         
         # Display screenshot timestamp (or Not available)
-        if [ "$screenshot_has_failed" = true ]; then
-            email_body+="Screenshot timestamp: Not available
+        if [ "$SCREENSHOT_ENABLED" != "yes" ] || [ "$FOLLOWUP_SCREENSHOT_ENABLED" != "yes" ]; then
+            email_body+="Follow-up Screenshot timestamp: Disabled
+"
+        elif [ "$screenshot_has_failed" = true ]; then
+            email_body+="Follow-up Screenshot timestamp: Not available
 "
         else
-            email_body+="Screenshot timestamp: ${shot_local} (Local) / ${shot_utc} (UTC)
+            email_body+="Follow-up Screenshot timestamp: ${shot_local} (Local) / ${shot_utc} (UTC)
 "
         fi
         
@@ -1386,6 +1641,16 @@ Media Status
 Location Information
 ${location_info}"
 
+        # Add network information status
+        if [ "$NETWORK_INFO_ENABLED" != "yes" ]; then
+            email_body+="
+
+Network Information
+WiFi SSID: Disabled
+Local IP Address: Disabled
+Public IP Address: Disabled"
+        fi
+        
         # Create email JSON with proper escaping
         local escaped_body=$(echo "$email_body" | sed 's/"/\\"/g' | sed 's/$/\\n/g' | tr -d '\n')
         
@@ -1421,6 +1686,7 @@ EOF
     # Save JSON for debugging
     save_json_debug "$temp_json" "$TARGET_DIR/debug_followup_email.json"
 
+    echo "Sending follow-up email to ${EMAIL_TO} from ${EMAIL_FROM}..."
     local response
     response=$(curl -s -w "%{http_code}" -X POST \
       -H "Authorization: Bearer ${RESEND_API_KEY}" \
@@ -1431,11 +1697,14 @@ EOF
 
     local http_code=${response: -3}
     if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
-        echo "Follow-up email sent successfully from queue."
+        echo "Follow-up email sent successfully. HTTP code: $http_code"
+        # Create a flag file to indicate follow-up email was sent
+        touch "$TARGET_DIR/.followup_email_sent"
         return 0
     else
-        echo "Failed to send queued follow-up email. Status code: $http_code"
+        echo "Failed to send follow-up email. Status code: $http_code"
         echo "Response: ${response%???}"
+        echo "Check your Resend API key and email configuration"
         return 1
     fi
 }
@@ -1549,22 +1818,35 @@ capture_photo() {
     local photo_path="$1"
     local max_retries=3
     local retry_count=0
+    
+    echo "Checking for active camera processes..."
     cleanup_camera
+    
     while [ $retry_count -lt $max_retries ]; do
         if check_camera; then
+            echo "Camera detected, attempting to capture photo (attempt $((retry_count + 1))/$max_retries)..."
             if timeout 10 imagesnap -w 2 "$photo_path" && [ -s "$photo_path" ]; then
                 PHOTO_UTC_CAPTURE=$(date -u '+%Y-%m-%d %H:%M:%S')
                 PHOTO_LOCAL_CAPTURE=$(date '+%I:%M:%S %p')
                 echo "Photo captured successfully at ${PHOTO_UTC_CAPTURE} UTC (${PHOTO_LOCAL_CAPTURE})"
+                echo "Photo saved to: $photo_path ($(du -h "$photo_path" | cut -f1) bytes)"
                 cleanup_camera
                 return 0
+            else
+                echo "Photo capture attempt $((retry_count + 1)) failed"
             fi
+        else
+            echo "No camera detected on attempt $((retry_count + 1))"
         fi
+        
+        echo "Cleaning up camera and waiting before retry..."
         cleanup_camera
         sleep 2
         retry_count=$((retry_count + 1))
     done
+    
     echo "Failed to capture photo after ${max_retries} attempts" >&2
+    echo "Please check if camera is connected and permissions are granted"
     # Set default timestamp even when capture fails
     PHOTO_UTC_CAPTURE=$(date -u '+%Y-%m-%d %H:%M:%S')
     PHOTO_LOCAL_CAPTURE="Not available (capture failed)"
@@ -1579,16 +1861,28 @@ capture_screenshot() {
     
     local screenshot_path="$1"
     local temp_path="${screenshot_path}.temp.png"
+    
+    echo "Attempting to capture screenshot..."
     if screencapture -x "$temp_path"; then
+        echo "Raw screenshot captured, processing image..."
         if sips -s format jpeg "$temp_path" --out "$screenshot_path" >/dev/null 2>&1 &&
            sips -Z 1024 "$screenshot_path" >/dev/null 2>&1; then
+            echo "Screenshot processed and resized successfully"
+            echo "Screenshot saved to: $screenshot_path ($(du -h "$screenshot_path" | cut -f1) bytes)"
             rm -f "$temp_path"
             SCREENSHOT_UTC_CAPTURE=$(date -u '+%Y-%m-%d %H:%M:%S')
             SCREENSHOT_LOCAL_CAPTURE=$(date '+%I:%M:%S %p')
             echo "Screenshot captured successfully at ${SCREENSHOT_UTC_CAPTURE} UTC (${SCREENSHOT_LOCAL_CAPTURE})"
             return 0
+        else
+            echo "Failed to process screenshot with sips" >&2
+            echo "Check if sips is available and has proper permissions"
         fi
+    else
+        echo "Failed to capture screenshot with screencapture command" >&2
+        echo "Check if screencapture is available and has proper permissions"
     fi
+    
     echo "Failed to capture or process screenshot" >&2
     # Set default timestamp even when capture fails
     SCREENSHOT_UTC_CAPTURE=$(date -u '+%Y-%m-%d %H:%M:%S')
@@ -1634,6 +1928,11 @@ send_initial_email() {
         if [ "$LOCATION_ENABLED" = "yes" ]; then
             capture_location
         fi
+        
+        # Always ensure network info is available if enabled
+        if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
+            ensure_network_info
+        fi
     fi
     
     local photo_has_failed=false
@@ -1648,7 +1947,7 @@ send_initial_email() {
     fi
 
     local current_time=$(date '+%I:%M:%S %p')
-    local email_subject="Mac Access Alert - ${CURRENT_USER} at ${current_time}"
+    local email_subject="Mac Watcher Alert - ${CURRENT_USER} at ${HR_TIME}"
     
     local temp_json="$TARGET_DIR/.temp_email.json"
     
@@ -1668,7 +1967,7 @@ send_initial_email() {
 EOF
     else
         # Get location information for plain text
-        local location_info="Location tracking disabled"
+        local location_info="Location tracking Disabled"
         if [ "$LOCATION_ENABLED" = "yes" ]; then
             if check_internet; then
                 if [ -f "$TARGET_DIR/location_output.txt" ] && [ -s "$TARGET_DIR/location_output.txt" ]; then
@@ -1682,7 +1981,7 @@ EOF
         fi
 
         # Build email body with plain text format
-        local email_body="Mac Access Alert
+        local email_body="Mac Watcher Alert
 
 User Information
 User: ${CURRENT_USER}
@@ -1691,7 +1990,10 @@ Media Status
 "
         
         # Display photo timestamp (or Not available)
-        if [ "$photo_has_failed" = true ]; then
+        if [ "$WEBCAM_ENABLED" != "yes" ]; then
+            email_body+="Photo timestamp: Disabled
+"
+        elif [ "$photo_has_failed" = true ]; then
             email_body+="Photo timestamp: Not available
 "
         else
@@ -1700,7 +2002,10 @@ Media Status
         fi
         
         # Display screenshot timestamp (or Not available)
-        if [ "$screenshot_has_failed" = true ]; then
+        if [ "$SCREENSHOT_ENABLED" != "yes" ]; then
+            email_body+="Screenshot timestamp: Disabled
+"
+        elif [ "$screenshot_has_failed" = true ]; then
             email_body+="Screenshot timestamp: Not available
 "
         else
@@ -1712,6 +2017,16 @@ Media Status
         email_body+="
 Location Information
 ${location_info}"
+
+        # Add network information status
+        if [ "$NETWORK_INFO_ENABLED" != "yes" ]; then
+            email_body+="
+
+Network Information
+WiFi SSID: Disabled
+Local IP Address: Disabled
+Public IP Address: Disabled"
+        fi
 
         # Create email JSON with proper escaping
         local escaped_body=$(echo "$email_body" | sed 's/"/\\"/g' | sed 's/$/\\n/g' | tr -d '\n')
@@ -1764,6 +2079,7 @@ EOF
     # Save JSON for debugging
     save_json_debug "$temp_json" "$TARGET_DIR/debug_initial_email.json"
 
+    echo "Sending initial email to ${EMAIL_TO} from ${EMAIL_FROM}..."
     local response
     response=$(curl -s -w "%{http_code}" -X POST \
        -H "Authorization: Bearer ${RESEND_API_KEY}" \
@@ -1774,7 +2090,7 @@ EOF
 
     local http_code=${response: -3}
     if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
-        echo "Initial email sent successfully."
+        echo "Initial email sent successfully. HTTP code: $http_code"
         echo "$email_subject" > "$TARGET_DIR/.subject"
         initial_email_sent=true
         # Create a flag file to indicate initial email was sent
@@ -1783,6 +2099,7 @@ EOF
     else
         echo "Failed to send initial email. Status code: $http_code"
         echo "Response: ${response%???}"
+        echo "Check your Resend API key and email configuration"
         return 1
     fi
 }
@@ -1790,6 +2107,12 @@ EOF
 send_followup_email() {
     if [ "$EMAIL_ENABLED" != "yes" ] || [ "$FOLLOWUP_EMAIL_ENABLED" != "yes" ]; then
         echo "Email notifications or follow-up emails disabled in configuration."
+        return 1
+    fi
+    
+    # Check if follow-up email was already sent by looking for the flag file
+    if [ -f "$TARGET_DIR/.followup_email_sent" ]; then
+        echo "Follow-up email was already sent. Skipping duplicate."
         return 1
     fi
     
@@ -1815,11 +2138,17 @@ send_followup_email() {
     fi
     
     local screenshot="$1"
+    
+    # Always ensure network info is available if enabled
+    if [ "$NETWORK_INFO_ENABLED" = "yes" ] && check_internet; then
+        ensure_network_info
+    fi
+    
     local original_subject=""
     if [ -f "$TARGET_DIR/.subject" ]; then
         original_subject=$(cat "$TARGET_DIR/.subject")
     else
-        original_subject="Mac Access Alert - ${CURRENT_USER}"
+        original_subject="Mac Watcher Alert - ${CURRENT_USER}"
     fi
     
     local screenshot_has_failed=false
@@ -1845,7 +2174,7 @@ send_followup_email() {
 EOF
     else
         # Get location information for plain text
-        local location_info="Location tracking disabled"
+        local location_info="Location tracking Disabled"
         if [ "$LOCATION_ENABLED" = "yes" ] && [ -f "$TARGET_DIR/location_output.txt" ] && [ -s "$TARGET_DIR/location_output.txt" ]; then
             location_info=$(cat "$TARGET_DIR/location_output.txt")
         else
@@ -1862,11 +2191,14 @@ Media Status
 "
         
         # Display screenshot timestamp (or Not available)
-        if [ "$screenshot_has_failed" = true ]; then
-            email_body+="Screenshot timestamp: Not available
+        if [ "$SCREENSHOT_ENABLED" != "yes" ] || [ "$FOLLOWUP_SCREENSHOT_ENABLED" != "yes" ]; then
+            email_body+="Follow-up Screenshot timestamp: Disabled
+"
+        elif [ "$screenshot_has_failed" = true ]; then
+            email_body+="Follow-up Screenshot timestamp: Not available
 "
         else
-            email_body+="Screenshot timestamp: ${SCREENSHOT_LOCAL_CAPTURE} (Local) / ${SCREENSHOT_UTC_CAPTURE} (UTC)
+            email_body+="Follow-up Screenshot timestamp: ${SCREENSHOT_LOCAL_CAPTURE} (Local) / ${SCREENSHOT_UTC_CAPTURE} (UTC)
 "
         fi
         
@@ -1874,6 +2206,16 @@ Media Status
         email_body+="
 Location Information
 ${location_info}"
+
+        # Add network information status
+        if [ "$NETWORK_INFO_ENABLED" != "yes" ]; then
+            email_body+="
+
+Network Information
+WiFi SSID: Disabled
+Local IP Address: Disabled
+Public IP Address: Disabled"
+        fi
         
         # Create email JSON with proper escaping
         local escaped_body=$(echo "$email_body" | sed 's/"/\\"/g' | sed 's/$/\\n/g' | tr -d '\n')
@@ -1910,6 +2252,7 @@ EOF
     # Save JSON for debugging
     save_json_debug "$temp_json" "$TARGET_DIR/debug_followup_email.json"
 
+    echo "Sending follow-up email to ${EMAIL_TO} from ${EMAIL_FROM}..."
     local response
     response=$(curl -s -w "%{http_code}" -X POST \
        -H "Authorization: Bearer ${RESEND_API_KEY}" \
@@ -1920,11 +2263,14 @@ EOF
 
     local http_code=${response: -3}
     if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
-        echo "Follow-up email sent successfully."
+        echo "Follow-up email sent successfully. HTTP code: $http_code"
+        # Create a flag file to indicate follow-up email was sent
+        touch "$TARGET_DIR/.followup_email_sent"
         return 0
     else
         echo "Failed to send follow-up email. Status code: $http_code"
         echo "Response: ${response%???}"
+        echo "Check your Resend API key and email configuration"
         return 1
     fi
 }
@@ -2019,7 +2365,7 @@ fi
 if ([ "$EMAIL_ENABLED" = "yes" ] && [ "$FOLLOWUP_EMAIL_ENABLED" = "yes" ]) || [ "$FOLLOWUP_SCREENSHOT_ENABLED" = "yes" ]; then
     echo "Waiting for follow-up delay of $FOLLOWUP_DELAY seconds..."
     sleep $FOLLOWUP_DELAY
-
+    
     # Only capture followup screenshot if enabled
     if [ "$SCREENSHOT_ENABLED" = "yes" ] && [ "$FOLLOWUP_SCREENSHOT_ENABLED" = "yes" ]; then
         FILE_TIME_FORMAT=$(date +"_%a_%d_%b_%I-%M-%S_%p")
@@ -2085,9 +2431,6 @@ elif [ "$EMAIL_ENABLED" = "yes" ] && ! validate_email_config && [ -n "$(ls "$MAI
 else
     echo "No emails in queue, skipping queue processor."
 fi
-
-echo "Current UTC time: ${UTC_TIME}"
-echo "Current User: ${CURRENT_USER}"
 
 # Current user and time reporting
 echo "Run by user: ${CURRENT_USER} at ${UTC_TIME} UTC"

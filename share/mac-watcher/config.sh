@@ -58,6 +58,7 @@ LOCATION_ENABLED="yes"
 LOCATION_METHOD="corelocation_cli"
 LOCATION_CONFIGURED="no"
 NETWORK_INFO_ENABLED="yes"
+NETWORK_CONFIGURED="no"
 WEBCAM_ENABLED="yes"
 SCREENSHOT_ENABLED="yes"
 FOLLOWUP_SCREENSHOT_ENABLED="yes"
@@ -88,6 +89,7 @@ EOL
     : ${LOCATION_METHOD:="corelocation_cli"}
     : ${LOCATION_CONFIGURED:="no"}
     : ${NETWORK_INFO_ENABLED:="yes"}
+    : ${NETWORK_CONFIGURED:="no"}
     : ${WEBCAM_ENABLED:="yes"}
     : ${SCREENSHOT_ENABLED:="yes"}
     : ${FOLLOWUP_SCREENSHOT_ENABLED:="yes"}
@@ -182,11 +184,11 @@ display_summary() {
     fi
     
     # Location section
-    echo -e "\n${ACCENT}◇ LOCATION${NC}"
+    echo -e "\n${ACCENT}◇ LOCATION & NETWORK${NC}"
     if [ "$LOCATION_ENABLED" = "yes" ]; then
-        echo -e "  Status    : ${SUCCESS}Enabled${NC}"
+        echo -e "  Location  : ${SUCCESS}Enabled${NC}"
     else
-        echo -e "  Status    : ${WARNING}Disabled${NC}"
+        echo -e "  Location  : ${WARNING}Disabled${NC}"
     fi
     
     # Display location method
@@ -254,7 +256,7 @@ display_summary() {
     fi
     
     # Timing section
-    echo -e "\n${ACCENT}◇ TIMING${NC}"
+    echo -e "\n${ACCENT}◇ DELAY TIMING${NC}"
     echo -e "  Initial   : ${SUCCESS}$INITIAL_DELAY seconds${NC}"
     echo -e "  Follow-up : ${SUCCESS}$FOLLOWUP_DELAY seconds${NC}"
     
@@ -345,9 +347,12 @@ configure_email() {
             echo -e "  ${PRIMARY}[8]${NC} Day Restriction : ${WARNING}Disabled${NC}"
         fi
         
-        echo -e "  ${PRIMARY}[9]${NC} Back to Main Menu"
+        # Add test email option
+        echo -e "  ${PRIMARY}[9]${NC} Test Email Configuration"
+        
+        echo -e "  ${PRIMARY}[0]${NC} Back to Main Menu"
         echo
-        read -p "Select option (1-9): " email_choice
+        read -p "Select option (0-9): " email_choice
         echo
         
         case $email_choice in
@@ -400,10 +405,13 @@ configure_email() {
                 configure_email_day_restrictions
                 ;;
             9)
+                test_email
+                ;;
+            0)
                 return
                 ;;
             *)
-                echo -e "${ERROR}Invalid option. Please choose between 1 and 9.${NC}"
+                echo -e "${ERROR}Invalid option. Please choose between 0 and 9.${NC}"
                 ;;
         esac
         
@@ -667,7 +675,7 @@ delete_time_window() {
 configure_location() {
     while true; do
         show_header
-        echo -e "${ACCENT}${BOLD}LOCATION CONFIGURATION${NC}"
+        echo -e "${ACCENT}${BOLD}LOCATION & NETWORK CONFIGURATION${NC}"
         echo
         
         if [ "$LOCATION_ENABLED" = "yes" ]; then
@@ -678,13 +686,26 @@ configure_location() {
         
         echo -e "  ${PRIMARY}[2]${NC} Select Location Method"
         
-        # Show the appropriate setup option based on the selected method
+        # Show the current method as a sub-item under option 2
         if [ "$LOCATION_METHOD" = "corelocation_cli" ]; then
-            echo -e "  ${PRIMARY}[3]${NC} Setup CoreLocationCLI"
             echo -e "      Current Method  : ${SUCCESS}CoreLocationCLI${NC}"
         else
-            echo -e "  ${PRIMARY}[3]${NC} Setup Apple Shortcut"
             echo -e "      Current Method  : ${SUCCESS}Apple Shortcuts${NC}"
+        fi
+        
+        # Show setup status based on the selected method
+        if [ "$LOCATION_METHOD" = "corelocation_cli" ]; then
+            if [ "$LOCATION_CONFIGURED" = "yes" ]; then
+                echo -e "  ${PRIMARY}[3]${NC} Setup CoreLocationCLI : ${SUCCESS}Configured${NC}"
+            else
+                echo -e "  ${PRIMARY}[3]${NC} Setup CoreLocationCLI : ${ERROR}Not Configured${NC}"
+            fi
+        else
+            if [ "$LOCATION_CONFIGURED" = "yes" ]; then
+                echo -e "  ${PRIMARY}[3]${NC} Setup Apple Shortcut : ${SUCCESS}Configured${NC}"
+            else
+                echo -e "  ${PRIMARY}[3]${NC} Setup Apple Shortcut : ${ERROR}Not Configured${NC}"
+            fi
         fi
         
         # Add network information toggle
@@ -694,9 +715,16 @@ configure_location() {
             echo -e "  ${PRIMARY}[4]${NC} Network Info    : ${WARNING}Disabled${NC}"
         fi
         
-        echo -e "  ${PRIMARY}[5]${NC} Back to Main Menu"
+        # Add network info setup status using the NETWORK_CONFIGURED variable
+        if [ "$NETWORK_CONFIGURED" = "yes" ]; then 
+            echo -e "  ${PRIMARY}[5]${NC} Network Setup   : ${SUCCESS}Configured${NC}"
+        else
+            echo -e "  ${PRIMARY}[5]${NC} Network Setup   : ${ERROR}Not Configured${NC}"
+        fi
+        
+        echo -e "  ${PRIMARY}[6]${NC} Back to Main Menu"
         echo
-        read -p "Select option (1-5): " location_choice
+        read -p "Select option (1-6): " location_choice
         echo
         
         case $location_choice in
@@ -715,18 +743,116 @@ configure_location() {
                 ;;
             4)
                 toggle_setting "NETWORK_INFO_ENABLED" "Network information"
+                # Reset network configured status when toggling
+                if [ "$NETWORK_INFO_ENABLED" = "no" ]; then
+                    NETWORK_CONFIGURED="no"
+                fi
                 ;;
             5)
+                setup_network_info
+                ;;
+            6)
                 return
                 ;;
             *)
-                echo -e "${ERROR}Invalid option. Please choose between 1 and 5.${NC}"
+                echo -e "${ERROR}Invalid option. Please choose between 1 and 6.${NC}"
                 ;;
         esac
         
         echo
         read -p "Press Enter to continue..."
     done
+}
+
+# Add a new function for network info setup
+setup_network_info() {
+    show_header
+    echo -e "${ACCENT}${BOLD}NETWORK INFORMATION SETUP${NC}"
+    echo
+    
+    if [ "$NETWORK_INFO_ENABLED" != "yes" ]; then
+        echo -e "${WARNING}Network information is currently disabled.${NC}"
+        echo -e "${WARNING}Please enable Network Info first.${NC}"
+        NETWORK_CONFIGURED="no"
+        return
+    fi
+    
+    echo -e "${SUCCESS}Testing network information collection...${NC}"
+    
+    # Test WiFi SSID detection
+    local wifi_ssid="Not available"
+    if command -v ipconfig >/dev/null 2>&1; then
+        echo -e "Testing WiFi SSID detection..."
+        local ssid_output=$(ipconfig getsummary en0 2>/dev/null | awk '/ SSID/ {print $NF}')
+        if [ -n "$ssid_output" ]; then
+            wifi_ssid="$ssid_output"
+            echo -e "${SUCCESS}WiFi SSID detected: $wifi_ssid${NC}"
+        else
+            echo -e "${WARNING}Could not detect WiFi SSID${NC}"
+        fi
+    else
+        echo -e "${ERROR}ipconfig command not available${NC}"
+    fi
+    
+    # Test local IP detection
+    local local_ip="Not available"
+    if command -v ipconfig >/dev/null 2>&1; then
+        echo -e "Testing local IP detection..."
+        local ip_output=$(ipconfig getifaddr en0 2>/dev/null)
+        if [ -n "$ip_output" ]; then
+            local_ip="$ip_output"
+            echo -e "${SUCCESS}Local IP detected: $local_ip${NC}"
+        else
+            echo -e "Trying alternate interface..."
+            ip_output=$(ipconfig getifaddr en1 2>/dev/null)
+            if [ -n "$ip_output" ]; then
+                local_ip="$ip_output"
+                echo -e "${SUCCESS}Local IP detected from en1: $local_ip${NC}"
+            else
+                echo -e "${WARNING}Could not detect local IP address${NC}"
+            fi
+        fi
+    fi
+    
+    # Test public IP detection
+    local public_ip="Not available"
+    echo -e "Testing internet connectivity..."
+    if ping -c 1 -W 3 api.resend.com > /dev/null 2>&1 || 
+       curl -s --connect-timeout 3 -I https://api.resend.com >/dev/null 2>&1; then
+        echo -e "${SUCCESS}Internet connection available${NC}"
+        if command -v curl >/dev/null 2>&1; then
+            echo -e "Testing public IP detection..."
+            local public_ip_output=$(curl -s ipinfo.io/ip 2>/dev/null)
+            if [ -n "$public_ip_output" ]; then
+                public_ip="$public_ip_output"
+                echo -e "${SUCCESS}Public IP detected: $public_ip${NC}"
+            else
+                echo -e "${WARNING}Could not detect public IP${NC}"
+            fi
+        else
+            echo -e "${ERROR}curl command not available for public IP detection${NC}"
+        fi
+    else
+        echo -e "${WARNING}No internet connection available${NC}"
+    fi
+    
+    echo
+    echo -e "${BOLD}Network Information Summary:${NC}"
+    echo -e "WiFi SSID      : ${SUCCESS}$wifi_ssid${NC}"
+    echo -e "Local IP       : ${SUCCESS}$local_ip${NC}"
+    echo -e "Public IP      : ${SUCCESS}$public_ip${NC}"
+    echo
+    
+    if [ "$wifi_ssid" != "Not available" ] || [ "$local_ip" != "Not available" ] || 
+       [ "$public_ip" != "Not available" ]; then
+        echo -e "${SUCCESS}Network information collection is working.${NC}"
+        echo -e "${SUCCESS}Network info will be included in monitoring data.${NC}"
+        NETWORK_CONFIGURED="yes"
+    else
+        echo -e "${ERROR}All network information tests failed.${NC}"
+        echo -e "${WARNING}Please check your network connection and try again.${NC}"
+        NETWORK_CONFIGURED="no"
+    fi
 }
 
 select_location_method() {
@@ -983,7 +1109,7 @@ EOF
 setup_location_shortcut() {
     echo -e "${ACCENT}${BOLD}LOCATION SHORTCUTS SETUP${NC}"
     echo -e "To set up your Location shortcut, visit (or) hold command button and double click on the link below:"
-    echo -e "${PRIMARY}https://www.icloud.com/shortcuts/1b977a158e7a4ab7951997777ac47cf7${NC}"
+    echo -e "${PRIMARY}https://www.icloud.com/shortcuts/15afe8819d4a40a8bb7fb56a57005d0b${NC}"
     echo
     echo "After adding the shortcut, press any key to continue..."
     echo "if prompted, select 'Allow' to grant location access."
@@ -1014,7 +1140,7 @@ setup_location_shortcut() {
     # NEW CONDITION: Check for JSON output with latitude/longitude
     elif [[ $SHORTCUT_EXIT_CODE -eq 0 && ("$SHORTCUT_OUTPUT" =~ \"latitude\":\"[0-9]+\.[0-9]+ && "$SHORTCUT_OUTPUT" =~ \"longitude\":\"[0-9]+\.[0-9]+) ]]; then
         LOCATION_CONFIGURED="yes"
-        echo -e "${SUCCESS}Location shortcut test successful (JSON format).${NC}"
+        echo -e "${SUCCESS}Location shortcut test successful.${NC}"
     # Original conditions for raw coordinates or maps.apple.com URL
     elif [[ $SHORTCUT_EXIT_CODE -eq 0 && ("$SHORTCUT_OUTPUT" =~ [0-9]+\.[0-9]+,[0-9]+\.[0-9]+ || "$SHORTCUT_OUTPUT" =~ maps\.apple\.com) ]]; then
         LOCATION_CONFIGURED="yes"
@@ -1685,6 +1811,7 @@ LOCATION_ENABLED="$LOCATION_ENABLED"
 LOCATION_METHOD="$LOCATION_METHOD"
 LOCATION_CONFIGURED="$LOCATION_CONFIGURED"
 NETWORK_INFO_ENABLED="$NETWORK_INFO_ENABLED"
+NETWORK_CONFIGURED="$NETWORK_CONFIGURED"
 WEBCAM_ENABLED="$WEBCAM_ENABLED"
 SCREENSHOT_ENABLED="$SCREENSHOT_ENABLED"
 FOLLOWUP_SCREENSHOT_ENABLED="$FOLLOWUP_SCREENSHOT_ENABLED"
@@ -1707,7 +1834,7 @@ display_menu() {
     echo -e "${BOLD}Select an option:${NC}"
     echo
     echo -e "  ${PRIMARY}[1]${NC} Email Settings"
-    echo -e "  ${PRIMARY}[2]${NC} Location Settings"
+    echo -e "  ${PRIMARY}[2]${NC} Location & Network Settings"
     echo -e "  ${PRIMARY}[3]${NC} Media Capture Settings"
     echo -e "  ${PRIMARY}[4]${NC} Custom Schedule"
     echo -e "  ${PRIMARY}[5]${NC} Storage Path"
@@ -1763,6 +1890,168 @@ main_menu() {
 # SCRIPT EXECUTION
 #=================================================================
 
+# Function to test email configuration
+test_email() {
+    show_header
+    echo -e "${ACCENT}${BOLD}EMAIL CONFIGURATION TEST${NC}"
+    echo
+    
+    # Validate email configuration
+    if [ "$EMAIL_ENABLED" != "yes" ]; then
+        echo -e "${ERROR}Email notifications are disabled.${NC}"
+        echo -e "${WARNING}Please enable email notifications first.${NC}"
+        return 1
+    fi
+    
+    if [ -z "$EMAIL_TO" ] || [ "$EMAIL_TO" == "" ]; then
+        echo -e "${ERROR}Email recipient is not configured.${NC}"
+        echo -e "${WARNING}Please configure a recipient email address first.${NC}"
+        return 1
+    fi
+    
+    if [ -z "$EMAIL_FROM" ] || [ "$EMAIL_FROM" == "" ]; then
+        echo -e "${ERROR}Sender email is not configured.${NC}"
+        echo -e "${WARNING}Please configure a sender email address first.${NC}"
+        return 1
+    fi
+    
+    if [ -z "$RESEND_API_KEY" ] || [ "$RESEND_API_KEY" == "" ]; then
+        echo -e "${ERROR}Resend API key is not configured.${NC}"
+        echo -e "${WARNING}Please configure your Resend API key first.${NC}"
+        return 1
+    fi
+    
+    echo -e "${WARNING}Sending test email to ${SUCCESS}$EMAIL_TO${NC}..."
+    echo -e "${WARNING}This will verify your email configuration.${NC}"
+    echo
+    
+    # Create a temporary directory for the test
+    local temp_dir=$(mktemp -d)
+    local temp_html="$temp_dir/test_email.html"
+    local temp_json="$temp_dir/test_email.json"
+    
+    # Get current user and extract first initial
+    local username=$(whoami)
+    local first_initial=$(echo "${username:0:1}" | tr '[:lower:]' '[:upper:]')
+    
+    # Create HTML template file
+    cat > "$temp_html" << 'EOF'
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html dir="ltr" lang="en">
+  <head>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>Mac Watcher - Test Mail</title>
+  </head>
+  <body style="margin:0 !important; padding:0 !important; width:100% !important;" class="force-bg-black body" bgcolor="#f6f6f7">
+    <div class="force-bg-black">
+      <!--[if mso | IE]>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#f6f6f7"><tr><td>
+      <![endif]-->
+      <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="force-bg-black" bgcolor="#f6f6f7">
+        <tr>
+          <td align="center" valign="top" style="padding:20px;">
+            <table role="presentation" width="480" border="0" cellpadding="0" cellspacing="0" class="force-bg-card" style="width:480px; max-width:480px; border-radius:20px !important;" bgcolor="#ffffff">
+              <!-- Header: Full Width Title Box -->
+              <tr>
+                <td style="border-radius:20px 20px 0 0 !important; padding: 16px 24px;" bgcolor="#ffffff">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-radius:16px !important;" bgcolor="#eaf1fa">
+                    <tr>
+                      <td style="padding:15px 16px;"> 
+                        <span style="font-size:18px; font-weight:bold; color:#007aff;">Mac Watcher - Test Mail</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <!-- User Profile -->
+              <tr>
+                <td style="padding:16px 24px 0 24px;">
+                  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="60" height="60" valign="middle" align="center" style="width:60px !important; height:60px !important; border-radius:30px !important; background-color:#e6f0fd;">
+                        <span style="font-size:24px; font-weight:bold; color:#007aff;">__FIRST_INITIAL__</span>
+                      </td>
+                      <td width="15" style="width:15px; font-size:1px; line-height:1px;"> </td>
+                      <td valign="middle">
+                        <div style="font-size:24px; font-weight:bold; color:#222222; margin-bottom:5px;">__USERNAME__</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 24px 24px 24px;">
+                  <p style="font-size:11px; color:#86868b; text-align:center; margin:0; line-height:24px;">This is an automated Test Mail from your Mac device.</p>
+                  <p style="font-size:11px; color:#86868b; text-align:center; margin:0; line-height:24px;">© 2025 Mac-Watcher</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+      <!--[if mso | IE]>
+      </td></tr></table>
+      <![endif]-->
+    </div>
+  </body>
+</html>
+EOF
+    
+    # Replace placeholders with actual values
+    sed -i '' "s/__FIRST_INITIAL__/$first_initial/g" "$temp_html"
+    sed -i '' "s/__USERNAME__/$username/g" "$temp_html"
+    
+    # Read the HTML content
+    local html_content=$(cat "$temp_html")
+    
+    # Create email JSON payload
+    cat > "$temp_json" << EOF
+{
+  "from": "Mac Watcher <${EMAIL_FROM}>",
+  "to": "${EMAIL_TO}",
+  "subject": "Mac-Watcher Test Email",
+  "reply_to": "${EMAIL_FROM}",
+  "html": $(echo "$html_content" | jq -Rs .)
+}
+
+EOF
+    
+    # Send the email
+    echo -e "${WARNING}Sending test email...${NC}"
+    local response
+    response=$(curl -s -w "%{http_code}" -X POST \
+      -H "Authorization: Bearer ${RESEND_API_KEY}" \
+      -H "Content-Type: application/json" \
+      --data-binary "@$temp_json" \
+      "https://api.resend.com/emails")
+    
+    # Clean up
+    rm -f "$temp_html" "$temp_json"
+    rmdir "$temp_dir"
+    
+    # Check response
+    local http_code=${response: -3}
+    if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
+        echo -e "${SUCCESS}Test email sent successfully!${NC}"
+        echo -e "${SUCCESS}Please check your inbox at ${EMAIL_TO}${NC}"
+        echo
+        echo -e "If you don't receive the email:"
+        echo -e "1. Check your spam folder"
+        echo -e "2. Verify your Resend API key is correct"
+        echo -e "3. Ensure your recipient email address is valid"
+        return 0
+    else
+        echo -e "${ERROR}Failed to send test email. Status code: $http_code${NC}"
+        echo -e "${ERROR}Response: ${response%???}${NC}"
+        echo
+        echo -e "${WARNING}Troubleshooting:${NC}"
+        echo -e "1. Verify your Resend API key is correct"
+        echo -e "2. Check that your recipient email is valid"
+        echo -e "3. Ensure you have internet connectivity"
+        return 1
+    fi
+}
 # Set the current user and date information
 CURRENT_DATE_UTC=$(date)
 CURRENT_USER=$(whoami)

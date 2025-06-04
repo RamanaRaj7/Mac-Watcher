@@ -63,6 +63,20 @@ mac-watcher --config          # Customize configuration
 mac-watcher --test            # Run the monitor script manually for testing
 mac-watcher --diagnostics     # Check current setup
 mac-watcher --instructions    # Show detailed instructions
+mac-watcher --version         # Display version information
+```
+
+Short form options are also available:
+
+```
+mac-watcher -h                # Display help information
+mac-watcher -d                # Check and install dependencies
+mac-watcher -s                # Set up .wakeup file and default configuration
+mac-watcher -c                # Customize configuration
+mac-watcher -t                # Run the monitor script manually for testing
+mac-watcher -D                # Check current setup
+mac-watcher -i                # Show detailed instructions
+mac-watcher -v                # Display version information
 ```
 
 ## Configuration

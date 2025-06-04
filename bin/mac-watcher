@@ -9,6 +9,9 @@
 # Exit on error
 set -e
 
+# Version information
+VERSION="1.0.2"
+
 # Color definitions - simplified and consistent palette
 ACCENT='\033[0;36m'     # Cyan for headings and highlights
 PRIMARY='\033[0;36m'    # Blue for primary elements
@@ -27,23 +30,29 @@ CONFIG_FILE="$HOME/.config/monitor.conf"
 # DISPLAY FUNCTIONS
 #=================================================================
 
+# Function to display version information
+display_version() {
+    echo -e "${ACCENT}${BOLD}Mac-Watcher${NC} version ${SUCCESS}${VERSION}${NC}"
+}
+
 # Function to display usage instructions
 display_help() {
     echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${ACCENT}${BOLD}║                  MAC-WATCHER                       ║${NC}"
+    echo -e "${ACCENT}${BOLD}║                    MAC-WATCHER                     ║${NC}"
     echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${PRIMARY}${BOLD}USAGE:${NC}"
     echo -e "  mac-watcher [OPTION]"
     echo
     echo -e "${PRIMARY}${BOLD}OPTIONS:${NC}"
-    echo -e "  ${SUCCESS}--dependencies${NC}  Check and install missing dependencies"
-    echo -e "  ${SUCCESS}--setup${NC}         Setup .wakeup file and default configuration"
-    echo -e "  ${SUCCESS}--config${NC}        Configure settings"
-    echo -e "  ${SUCCESS}--diagnostics${NC}   Check current setup"
-    echo -e "  ${SUCCESS}--test${NC}          Run the monitor script manually for testing"
-    echo -e "  ${SUCCESS}--instructions${NC}  Show detailed usage instructions"
-    echo -e "  ${SUCCESS}--help${NC}          Display this help message"
+    echo -e "  ${SUCCESS}--dependencies, -d${NC}  Check and install missing dependencies"
+    echo -e "  ${SUCCESS}--setup, -s${NC}         Setup .wakeup file and default configuration"
+    echo -e "  ${SUCCESS}--config, -c${NC}        Configure settings"
+    echo -e "  ${SUCCESS}--diagnostics, -D${NC}   Check current setup"
+    echo -e "  ${SUCCESS}--test, -t${NC}          Run the monitor script manually for testing"
+    echo -e "  ${SUCCESS}--instructions, -i${NC}  Show detailed usage instructions"
+    echo -e "  ${SUCCESS}--version, -v${NC}       Display version information"
+    echo -e "  ${SUCCESS}--help, -h${NC}          Display this help message"
     echo
     echo -e "${PRIMARY}${BOLD}RECOMMENDED WORKFLOW:${NC}"
     echo -e "  1. ${SUCCESS}mac-watcher --dependencies${NC}"
@@ -58,7 +67,7 @@ display_help() {
 # Function to display detailed instructions
 display_instructions() {
     echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${ACCENT}${BOLD}║             MAC-WATCHER INSTRUCTIONS               ║${NC}"
+    echo -e "${ACCENT}${BOLD}║              MAC-WATCHER INSTRUCTIONS              ║${NC}"
     echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${PRIMARY}${BOLD}OVERVIEW:${NC}"
@@ -92,7 +101,7 @@ display_instructions() {
 # Function to check dependencies
 check_dependencies() {
     echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${ACCENT}${BOLD}║              DEPENDENCY CHECKER                    ║${NC}"
+    echo -e "${ACCENT}${BOLD}║                 DEPENDENCY CHECKER                 ║${NC}"
     echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
     echo
     
@@ -174,7 +183,7 @@ check_dependencies() {
 # Function to run diagnostics
 run_diagnostics() {
     echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${ACCENT}${BOLD}║              SYSTEM DIAGNOSTICS                    ║${NC}"
+    echo -e "${ACCENT}${BOLD}║                 SYSTEM DIAGNOSTICS                 ║${NC}"
     echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
     echo
     
@@ -294,21 +303,21 @@ run_diagnostics() {
 
 # Process command line arguments
 case "$1" in
-    --help)
+    --help|-h)
         display_help
         ;;
-    --instructions)
+    --instructions|-i)
         display_instructions
         ;;
-    --config)
+    --config|-c)
         "$SHARE_DIR/config.sh"
         ;;
-    --setup)
+    --setup|-s)
         "$SHARE_DIR/setup.sh"
         ;;
-    --test)
+    --test|-t)
         echo -e "${ACCENT}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
-        echo -e "${ACCENT}${BOLD}║             MANUAL MONITOR TEST                    ║${NC}"
+        echo -e "${ACCENT}${BOLD}║                 MANUAL MONITOR TEST                ║${NC}"
         echo -e "${ACCENT}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
         echo
         echo -e "${WARNING}Running monitor script manually for testing...${NC}"
@@ -335,11 +344,14 @@ case "$1" in
         
         echo -e "${PRIMARY}To view the captured data, check:${NC} ${SUCCESS}$SAVE_DIR${NC}"
         ;;
-    --dependencies)
+    --dependencies|-d)
         check_dependencies
         ;;
-    --diagnostics)
+    --diagnostics|-D)
         run_diagnostics
+        ;;
+    --version|-v)
+        display_version
         ;;
     *)
         display_help

@@ -1,7 +1,7 @@
 # Makefile for mac-watcher
 
 PREFIX ?= /usr/local
-VERSION = 1.0.0
+VERSION = 1.0.2
 
 .PHONY: all install uninstall package clean test update-formula
 
