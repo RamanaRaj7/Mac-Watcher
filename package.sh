@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Set default version if not specified
-VERSION="${VERSION:-1.0.2}"
+VERSION="${VERSION:-1.0.4}"
 PKG_NAME="mac-watcher-$VERSION"
 DIST_DIR="dist"
 ARCHIVE_NAME="$PKG_NAME.tar.gz"

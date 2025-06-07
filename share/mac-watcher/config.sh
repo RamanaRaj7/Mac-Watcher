@@ -54,6 +54,7 @@ EMAIL_ACTIVE_DAYS="Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"
 INITIAL_DELAY=2
 FOLLOWUP_DELAY=25
 BASE_DIR="\$HOME/Pictures/.access"
+LOGIN_FAILURE_DETECTION_ENABLED="no"
 LOCATION_ENABLED="yes"
 LOCATION_METHOD="corelocation_cli"
 LOCATION_CONFIGURED="no"
@@ -85,6 +86,7 @@ EOL
     : ${EMAIL_ACTIVE_DAYS:="Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"}
     : ${INITIAL_DELAY:=2}
     : ${FOLLOWUP_DELAY:=25}
+    : ${LOGIN_FAILURE_DETECTION_ENABLED:="no"}
     : ${LOCATION_ENABLED:="yes"}
     : ${LOCATION_METHOD:="corelocation_cli"}
     : ${LOCATION_CONFIGURED:="no"}
@@ -183,8 +185,17 @@ display_summary() {
         echo -e "  Day Restriction : ${WARNING}Disabled${NC}"
     fi
     
+    # Security section (new)
+    echo -e "\n${ACCENT}◇ SECURITY${NC}"
+    if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
+        echo -e "  Login Detection : ${SUCCESS}Enabled${NC}"
+    else
+        echo -e "  Login Detection : ${WARNING}Disabled${NC}"
+    fi
+    
     # Location section
     echo -e "\n${ACCENT}◇ LOCATION & NETWORK${NC}"
+    
     if [ "$LOCATION_ENABLED" = "yes" ]; then
         echo -e "  Location  : ${SUCCESS}Enabled${NC}"
     else
@@ -1788,10 +1799,13 @@ configure_auto_delete() {
 }
 
 save_configuration() {
+    # Get current date/time in UTC
+    local current_date_utc=$(date -u "+%Y-%m-%d %H:%M:%S")
+    
     # Use the current date and user information in the configuration file header
     cat > "$CONFIG_FILE" << EOL
 # Monitor Configuration
-# Last updated: 2025-05-14 16:09:35 UTC
+# Last updated: ${current_date_utc} UTC
 # Updated by: ${CURRENT_USER}
 
 EMAIL_FROM="$EMAIL_FROM"
@@ -1807,6 +1821,7 @@ EMAIL_ACTIVE_DAYS="$EMAIL_ACTIVE_DAYS"
 INITIAL_DELAY=$INITIAL_DELAY
 FOLLOWUP_DELAY=$FOLLOWUP_DELAY
 BASE_DIR="$BASE_DIR"
+LOGIN_FAILURE_DETECTION_ENABLED="$LOGIN_FAILURE_DETECTION_ENABLED"
 LOCATION_ENABLED="$LOCATION_ENABLED"
 LOCATION_METHOD="$LOCATION_METHOD"
 LOCATION_CONFIGURED="$LOCATION_CONFIGURED"
@@ -1830,19 +1845,23 @@ EOL
 
 display_menu() {
     show_header
+    
+    # Show config summary at the top
     display_summary
-    echo -e "${BOLD}Select an option:${NC}"
     echo
+    
+    echo -e "${ACCENT}${BOLD}CONFIGURATION MENU${NC}"
     echo -e "  ${PRIMARY}[1]${NC} Email Settings"
     echo -e "  ${PRIMARY}[2]${NC} Location & Network Settings"
     echo -e "  ${PRIMARY}[3]${NC} Media Capture Settings"
-    echo -e "  ${PRIMARY}[4]${NC} Custom Schedule"
-    echo -e "  ${PRIMARY}[5]${NC} Storage Path"
+    echo -e "  ${PRIMARY}[4]${NC} Schedule Settings"
+    echo -e "  ${PRIMARY}[5]${NC} Storage Path Settings"
     echo -e "  ${PRIMARY}[6]${NC} Timing Settings"
     echo -e "  ${PRIMARY}[7]${NC} Auto-Delete Settings"
-    echo -e "  ${PRIMARY}[8]${NC} Save and Exit"
+    echo -e "  ${PRIMARY}[8]${NC} Login Detection Settings"
+    echo -e "  ${PRIMARY}[9]${NC} Save & Exit"
     echo
-    read -p "Select option (1-8): " choice
+    read -p "Select option (1-9): " choice
     echo
 }
 
@@ -1874,16 +1893,70 @@ main_menu() {
                 configure_auto_delete
                 ;;
             8)
+                configure_login_failure_detection
+                ;;
+            9)
                 save_configuration
                 echo -e "\n${SUCCESS}Configuration saved. Exiting.${NC}"
                 exit 0
                 ;;
             *)
-                echo -e "${ERROR}Invalid option. Please choose between 1 and 8.${NC}"
+                echo -e "${ERROR}Invalid option. Please choose between 1 and 9.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
     done
+}
+
+#=================================================================
+# LOGIN FAILURE DETECTION CONFIGURATION
+#=================================================================
+
+configure_login_failure_detection() {
+    show_header
+    echo -e "${ACCENT}${BOLD}LOGIN DETECTION CONFIGURATION${NC}"
+    echo
+    
+    if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
+        echo -e "Login detection is currently ${SUCCESS}ENABLED${NC}."
+    else
+        echo -e "Login detection is currently ${WARNING}DISABLED${NC}."
+    fi
+    echo
+    
+    echo -e "This feature monitors system logs for login attempts."
+    echo -e "When enabled, the script will:"
+    echo -e " - Continue execution if a failed login is detected"
+    echo -e " - Exit immediately if a successful login is detected"
+    echo -e " - Exit if no login events are detected within the timeout"
+    echo -e "When disabled, the script will always execute regardless of login events."
+    echo
+    
+    echo -e "${PRIMARY}[1]${NC} Enable login detection"
+    echo -e "${PRIMARY}[2]${NC} Disable login detection"
+    echo -e "${PRIMARY}[3]${NC} Back to Main Menu"
+    echo
+    
+    read -p "Select an option (1-3): " choice
+    
+    case $choice in
+        1)
+            LOGIN_FAILURE_DETECTION_ENABLED="yes"
+            echo -e "\n${SUCCESS}Login detection ENABLED.${NC}"
+            ;;
+        2)
+            LOGIN_FAILURE_DETECTION_ENABLED="no"
+            echo -e "\n${SUCCESS}Login detection DISABLED.${NC}"
+            ;;
+        3)
+            return
+            ;;
+        *)
+            echo -e "\n${ERROR}Invalid option. Please choose between 1 and 3.${NC}"
+            ;;
+    esac
+    
+    read -p "Press Enter to continue..."
 }
 
 #=================================================================

@@ -39,6 +39,7 @@ fi
 : ${EMAIL_ACTIVE_DAYS:="Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"}
 : ${INITIAL_DELAY:=0}
 : ${FOLLOWUP_DELAY:=25}
+: ${LOGIN_FAILURE_DETECTION_ENABLED:="no"} # New setting for login failure detection
 : ${LOCATION_ENABLED:="yes"}
 : ${LOCATION_METHOD:="corelocation_cli"} # Default method: corelocation_cli or apple_shortcuts
 : ${NETWORK_INFO_ENABLED:="yes"} # Default for network information
@@ -61,6 +62,7 @@ echo "- NETWORK_INFO_ENABLED: $NETWORK_INFO_ENABLED"
 echo "- WEBCAM_ENABLED: $WEBCAM_ENABLED"
 echo "- SCREENSHOT_ENABLED: $SCREENSHOT_ENABLED"
 echo "- FOLLOWUP_SCREENSHOT_ENABLED: $FOLLOWUP_SCREENSHOT_ENABLED"
+echo "- LOGIN_DETECTION_ENABLED: $LOGIN_FAILURE_DETECTION_ENABLED"
 
 # Directory setup
 YEAR=$(date +"%Y")
@@ -927,7 +929,6 @@ collect_network_info() {
         echo "No internet connection available, skipping public IP detection" >&2
     fi
     
-    echo "Network information collection completed" >&2
     # Return the formatted network information
     cat <<EOF
 
@@ -961,20 +962,52 @@ capture_location_cli() {
         return 1
     fi
     
+    # Initialize variable to store complete output
+    local formatted_output=""
+    
+    # Collect network information first if enabled
+    if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
+        echo "NETWORK_INFO_ENABLED is yes, collecting network information first..."
+        local network_info=$(collect_network_info)
+        formatted_output+="$network_info"
+        echo "Network information collected successfully"
+    else
+        echo "NETWORK_INFO_ENABLED is not enabled, skipping network information collection"
+    fi
+    
+    # Now try to capture location data
     echo "Capturing location data using CoreLocationCLI..."
     
     # Check if CoreLocationCLI is available
     if ! command -v CoreLocationCLI &> /dev/null; then
         echo "Error: CoreLocationCLI command not found. Cannot capture location."
-        echo "Location data unavailable - CoreLocationCLI not installed" > "$TARGET_DIR/location_output.txt"
-        return 1
+        
+        # If we already have network info, save it
+        if [ -n "$formatted_output" ]; then
+            echo "Location data unavailable - CoreLocationCLI not installed" > "$TARGET_DIR/location_output.txt"
+            echo "$formatted_output" >> "$TARGET_DIR/location_output.txt"
+            echo "Saved network information without location data"
+            return 0
+        else
+            echo "Location data unavailable - CoreLocationCLI not installed" > "$TARGET_DIR/location_output.txt"
+            return 1
+        fi
     fi
     
     # Check if jq is available
     if ! command -v jq &> /dev/null; then
         echo "Error: jq command not found. Cannot parse location data."
-        echo "Location data unavailable - jq not installed" > "$TARGET_DIR/location_output.txt"
-        return 1
+        
+        # If we already have network info, save it
+        if [ -n "$formatted_output" ]; then
+            echo "Location data unavailable - jq not installed" > "$TARGET_DIR/location_output.txt"
+            echo "$formatted_output" >> "$TARGET_DIR/location_output.txt"
+            echo "Saved network information without location data"
+            return 0
+        else
+            echo "Location data unavailable - jq not installed" > "$TARGET_DIR/location_output.txt"
+            return 1
+        fi
     fi
     
     # Get location data using CoreLocationCLI
@@ -984,8 +1017,17 @@ capture_location_cli() {
     # Check if we got valid JSON
     if [ -z "$LOCATION_JSON" ] || ! echo "$LOCATION_JSON" | jq . &>/dev/null; then
         echo "Error: Failed to obtain valid location data from CoreLocationCLI."
-        echo "Location data unavailable - CoreLocationCLI failed" > "$TARGET_DIR/location_output.txt"
-        return 1
+        
+        # If we already have network info, save it
+        if [ -n "$formatted_output" ]; then
+            echo "Location data unavailable - CoreLocationCLI failed" > "$TARGET_DIR/location_output.txt"
+            echo "$formatted_output" >> "$TARGET_DIR/location_output.txt"
+            echo "Saved network information without location data"
+            return 0
+        else
+            echo "Location data unavailable - CoreLocationCLI failed" > "$TARGET_DIR/location_output.txt"
+            return 1
+        fi
     fi
     
     # Extract values using jq
@@ -1004,8 +1046,8 @@ capture_location_cli() {
     local MAP_LINK="https://maps.apple.com/?q=$LAT,$LON&ll=$LAT,$LON"
     
     # Format the location information
-    local formatted_location
-    formatted_location=$(cat <<EOF
+    local location_info
+    location_info=$(cat <<EOF
 Location Details
 
 Locality: $LOCALITY
@@ -1029,18 +1071,11 @@ $MAP_LINK
 EOF
 )
     
-    # Add network information if enabled
-    if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
-        echo "NETWORK_INFO_ENABLED is yes, collecting network information..."
-        local network_info=$(collect_network_info)
-        formatted_location+="$network_info"
-        echo "Network information added to location output"
-    else
-        echo "NETWORK_INFO_ENABLED is not enabled, skipping network information collection"
-    fi
+    # Prepend the location information to our output
+    formatted_output="$location_info$formatted_output"
     
     # Save the formatted location data to a file
-    echo "$formatted_location" > "$TARGET_DIR/location_output.txt"
+    echo "$formatted_output" > "$TARGET_DIR/location_output.txt"
     
     # Save raw JSON data for debugging
     echo "$LOCATION_JSON" > "$TARGET_DIR/location_raw.json"
@@ -1058,6 +1093,20 @@ capture_location_shortcuts() {
         return 1
     fi
     
+    # Initialize variable to store complete output
+    local formatted_output=""
+    
+    # Collect network information first if enabled
+    if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
+        echo "NETWORK_INFO_ENABLED is yes, collecting network information first..."
+        local network_info=$(collect_network_info)
+        formatted_output+="$network_info"
+        echo "Network information collected successfully"
+    else
+        echo "NETWORK_INFO_ENABLED is not enabled, skipping network information collection"
+    fi
+    
+    # Now try to capture location data
     echo "Capturing location data using Apple Shortcuts..."
     
     # Run the location shortcut and save raw output
@@ -1116,16 +1165,24 @@ capture_location_shortcuts() {
     else
         echo "Error: Location shortcut failed with exit code $SHORTCUT_EXIT_CODE"
         LOCATION_STATUS="Location shortcut failed"
+        
+        # If shortcut failed but we have network info, save it and return success
+        if [ -n "$formatted_output" ]; then
+            echo "Location data unavailable - Shortcut failed" > "$TARGET_DIR/location_output.txt"
+            echo "$formatted_output" >> "$TARGET_DIR/location_output.txt"
+            echo "Saved network information without location data"
+            return 0
+        fi
     fi
     
     # Prepare location output based on if we have coordinates
-    local location_output
+    local location_info=""
     if [ -n "$LAT" ] && [ -n "$LON" ]; then
         # Generate Apple Maps link
         local MAP_LINK="https://maps.apple.com/?q=$LAT,$LON&ll=$LAT,$LON"
         
         # Format the location information
-        location_output=$(cat <<EOF
+        location_info=$(cat <<EOF
 Location Details
 
 Locality: $LOCALITY
@@ -1150,7 +1207,7 @@ EOF
 )
     else
         # Basic location status if no coordinates
-        location_output=$(cat <<EOF
+        location_info=$(cat <<EOF
 Location Details
 
 Status: $LOCATION_STATUS
@@ -1163,21 +1220,14 @@ EOF
 )
     fi
     
-    # Add network information using the existing collect_network_info function
-    local network_info=""
-    if [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
-        echo "NETWORK_INFO_ENABLED is yes, collecting network information for Apple Shortcuts location..."
-        network_info=$(collect_network_info)
-        echo "Network information collected for Apple Shortcuts location"
-    else
-        echo "NETWORK_INFO_ENABLED is not enabled, skipping network information collection"
-    fi
+    # Prepend location info to our output
+    formatted_output="${location_info}${formatted_output}"
     
-    # Combine location and network info
-    echo "${location_output}${network_info}" > "$TARGET_DIR/location_output.txt"
+    # Save the combined information
+    echo "$formatted_output" > "$TARGET_DIR/location_output.txt"
 
     # Return success unless both location and network info failed
-    if [ -n "$LAT" ] || [ "$NETWORK_INFO_ENABLED" = "yes" ]; then
+    if [ -n "$LAT" ] || [ -n "$formatted_output" ]; then
         echo "Data capture completed successfully."
         return 0
     else
@@ -1686,7 +1736,7 @@ EOF
     # Save JSON for debugging
     save_json_debug "$temp_json" "$TARGET_DIR/debug_followup_email.json"
 
-    echo "Sending follow-up email to ${EMAIL_TO} from ${EMAIL_FROM}..."
+    echo "Sending follow-up email"
     local response
     response=$(curl -s -w "%{http_code}" -X POST \
       -H "Authorization: Bearer ${RESEND_API_KEY}" \
@@ -2079,7 +2129,7 @@ EOF
     # Save JSON for debugging
     save_json_debug "$temp_json" "$TARGET_DIR/debug_initial_email.json"
 
-    echo "Sending initial email to ${EMAIL_TO} from ${EMAIL_FROM}..."
+    echo "Sending initial email"
     local response
     response=$(curl -s -w "%{http_code}" -X POST \
        -H "Authorization: Bearer ${RESEND_API_KEY}" \
@@ -2304,6 +2354,159 @@ run_auto_delete
 if [ "$INITIAL_DELAY" -gt 0 ]; then
     echo "Waiting for initial delay of $INITIAL_DELAY seconds..."
     sleep $INITIAL_DELAY
+fi
+
+#############################
+# Login Detection
+#############################
+if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
+    echo "Login detection enabled. Monitoring for login attempts..."
+    
+    # Set a timeout for the detection (in seconds)
+    DETECTION_TIMEOUT=60
+    
+    # Variables for tracking login attempts
+    success_count=0
+    failed_count=0
+    fingerprint_count=0
+    password_count=0
+    time_threshold=1
+    last_success_time=0
+    last_failed_time=0
+    ACTUAL_USER=$(whoami)
+    
+    # Flag to track detection status
+    login_detected=false
+    login_success=false
+
+    current_time_seconds() {
+        date +%s
+    }
+
+    detect_auth_method() {
+        local line="$1"
+        local username="$2"
+
+        if [[ "$username" == "admin" ]]; then
+            echo "fingerprint/touch ID"
+        elif [[ "$username" == "$ACTUAL_USER" ]]; then
+            echo "password"
+        elif [[ "$line" == *"_authSuccessUsingPassword"* || "$line" == *"with password"* || "$line" == *"password is CORRECT"* ]]; then
+            echo "password"
+        elif [[ "$line" == *"Screen saver unlocked by"* && "$line" != *"_authSuccessUsingPassword"* ]]; then
+            echo "fingerprint/touch ID"
+        elif [[ "$line" == *"biometric"* || "$line" == *"Touch ID"* ]]; then
+            echo "fingerprint/touch ID"
+        else
+            echo "unknown method"
+        fi
+    }
+    
+    # Use process substitution to avoid creating a subshell that would lose variable changes
+    # This technique allows us to read from log stream while maintaining variables in the main shell
+    exec 3< <(log stream --predicate 'eventMessage CONTAINS "authSuccess" OR eventMessage CONTAINS "Failed to authenticate user" OR eventMessage CONTAINS "biometryFailed" OR eventMessage CONTAINS "Touch ID" OR eventMessage CONTAINS "LocalAuthentication" OR eventMessage CONTAINS "Authentication cancelled" OR eventMessage CONTAINS "unlock attempts"' --style syslog 2>/dev/null)
+    
+    # Create a temp file for timeout notification
+    TIMEOUT_FILE=$(mktemp)
+    
+    # Start a timeout in background without using signals (no termination message)
+    (
+        sleep $DETECTION_TIMEOUT
+        # Signal timeout by writing to a file instead of sending a signal
+        echo "TIMEOUT" > "$TIMEOUT_FILE"
+    ) >/dev/null 2>&1 &
+    # Store timeout process ID
+    timeout_pid=$!
+    # Immediately disown it to prevent termination messages
+    disown $timeout_pid
+    
+    echo "Waiting for login events (timeout: ${DETECTION_TIMEOUT} seconds)..."
+    
+    # Read log stream with timeout check
+    while IFS= read -r line <&3 || [[ -n "$line" ]]; do
+        # Check for timeout
+        if [[ -s "$TIMEOUT_FILE" ]]; then
+            # Timeout occurred
+            echo "Detection timeout reached. No login events detected within $DETECTION_TIMEOUT seconds."
+            timeout_triggered=true
+            break
+        fi
+        
+        # Skip filtering messages
+        [[ "$line" == *"Filtering the log data"* ]] && continue
+        
+        current_time=$(current_time_seconds)
+        log_timestamp=$(echo "$line" | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}" | head -1)
+        [[ -z "$log_timestamp" ]] && log_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+        
+        if [[ "$line" == *"authSuccess"* ]]; then
+            # Determine if this is a primary successful event
+            if [[ "$line" == *"Screen saver unlocked by"* || "$line" == *"setting session authenticated flag"* || "$line" == *"Unlock succeeded"* || ( "$line" == *"password is CORRECT"* && "$line" != *"calling defaultScreenLockHandleUnlockResult"* ) ]]; then
+                if (( current_time - last_success_time > time_threshold )); then
+                    last_success_time=$current_time
+                    username=$(echo "$line" | grep -oE "unlocked by [a-zA-Z0-9_-]+" | awk '{print $3}')
+                    [[ -z "$username" ]] && username=$(whoami)
+                    auth_method=$(detect_auth_method "$line" "$username")
+                    if [[ "$auth_method" == "fingerprint/touch ID" ]]; then
+                        ((fingerprint_count++))
+                    elif [[ "$auth_method" == "password" ]]; then
+                        ((password_count++))
+                    fi
+                    ((success_count++))
+                    echo "[$log_timestamp] ✅ SUCCESS ($success_count): Login by $username using $auth_method"
+                    
+                    # Set flags and break the loop
+                    login_detected=true
+                    login_success=true
+                    break
+                fi
+            fi
+        elif [[ "$line" == *"Failed to authenticate user"* || "$line" == *"biometryFailed"* || "$line" == *"LocalAuthentication failed"* || "$line" == *"Touch ID authentication failed"* || ( "$line" == *"unlock attempts"* && "$line" != *"unlock attempts: 0"* ) || "$line" == *"Authentication cancelled"* ]]; then
+            if (( current_time - last_failed_time > time_threshold )); then
+                last_failed_time=$current_time
+                auth_method="unknown method"
+                [[ "$line" == *"Touch ID"* || "$line" == *"biometry"* ]] && auth_method="fingerprint/touch ID"
+                [[ "$line" == *"password"* ]] && auth_method="password"
+                ((failed_count++))
+                echo "[$log_timestamp] ❌ FAILED ($failed_count): Authentication attempt failed ($auth_method)"
+                
+                # Set flag and break the loop
+                login_detected=true
+                login_success=false
+                break
+            fi
+        fi
+    done
+    
+    # Clean up
+    exec 3<&-  # Close file descriptor
+
+    # Remove timeout process without using kill (prevents termination message)
+    timeout_triggered=false
+    if [[ -s "$TIMEOUT_FILE" ]]; then
+        timeout_triggered=true
+    fi
+
+    # Clean up the temp file
+    rm -f "$TIMEOUT_FILE"
+
+    # Check detection status and take appropriate action
+    if $login_detected; then
+        if $login_success; then
+            echo "Successful login detected. Exiting as no security action needed."
+            exit 0
+        else
+            echo "Failed login detected. Continuing with security monitoring actions..."
+        fi
+    else
+        if $timeout_triggered; then
+            echo "No login events detected within timeout period."
+        else
+            echo "Login detection completed without any events."
+        fi
+        echo "No login failures detected. Exiting script as per configuration."
+        exit 0
+    fi
 fi
 
 #############################
