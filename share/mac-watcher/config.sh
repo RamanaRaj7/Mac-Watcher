@@ -1926,7 +1926,7 @@ configure_login_failure_detection() {
     
     echo -e "This feature monitors system logs for login attempts."
     echo -e "When enabled, the script will:"
-    echo -e " - Continue execution if a failed login is detected"
+    echo -e " - Continue execution if a failed login (wrong password or fingerprint) is detected"
     echo -e " - Exit immediately if a successful login is detected"
     echo -e " - Exit if no login events are detected within the timeout"
     echo -e "When disabled, the script will always execute regardless of login events."

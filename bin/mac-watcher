@@ -10,7 +10,7 @@
 set -e
 
 # Version information
-VERSION="1.0.4"
+VERSION="1.0.5"
 
 # Color definitions - simplified and consistent palette
 ACCENT='\033[0;36m'     # Cyan for headings and highlights

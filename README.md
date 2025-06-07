@@ -14,6 +14,9 @@ A macOS monitoring tool that creates email alerts and captures system informatio
 - Collect network details
 - Custom scheduling options for alerts
 - Secure and private data storage
+- Login failure detection
+- Initial and follow-up email options
+- Automatic data cleanup
 
 ## Installation
 
@@ -89,6 +92,45 @@ Mac-Watcher creates a default configuration file at `~/.config/monitor.conf` dur
 - Custom scheduling and time restrictions
 - Auto-deletion settings for captured data
 
+
+
+#### Login Failure Detection
+
+Mac-Watcher can be configured to only trigger alerts when a login failure is detected, rather than on every wake event:
+
+- Monitors both Touch ID and password authentication attempts
+- Distinguishes between successful and failed login attempts
+- Only triggers monitoring actions when login failures occur
+- Provides detailed logs of authentication events
+
+This feature can be enabled/disabled via the configuration utility.
+
+#### Email Configuration Options
+
+**Initial and Follow-up Emails**
+- Configure separate initial and follow-up emails
+- Initial email includes webcam photo, screenshot, and location information
+- Follow-up email captures a second screenshot after a configurable delay
+- Each can be enabled/disabled independently
+
+#### Location Tracking Methods
+
+Two location tracking methods are available:
+
+1. **CoreLocationCLI** (default): Uses the CoreLocationCLI tool to retrieve precise location data
+2. **Apple Shortcuts**: Alternative method using Apple Shortcuts for location services
+
+The method can be selected in the configuration utility.
+
+#### Network Information Collection
+
+When enabled, Mac-Watcher collects:
+- WiFi SSID information
+- Local IP address
+- Public IP address
+
+This information is included in email alerts and stored in the location data file.
+
 ## Testing
 
 You can manually test the monitoring functionality without waiting for a wake event:
@@ -114,6 +156,14 @@ By default, all captured data is stored in:
 ```
 
 You can change this location using the configuration utility.
+
+### Auto-Deletion
+
+You can enable automatic deletion of old monitoring data after a specified number of days to manage disk space. Configure this option with:
+
+```bash
+mac-watcher --config
+```
 
 ## Troubleshooting
 

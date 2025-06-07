@@ -31,7 +31,7 @@ if [ "$LOCATION_ENABLED" = "yes" ] && [ "$LOCATION_METHOD" = "corelocation_cli" 
 fi
 # Set defaults for any missing variables (for backward compatibility)
 : ${EMAIL_ENABLED:="no"}
-: ${INITIAL_EMAIL_ENABLED:="yes"} # New setting for initial email
+: ${INITIAL_EMAIL_ENABLED:="yes"} 
 : ${FOLLOWUP_EMAIL_ENABLED:="yes"}
 : ${EMAIL_TIME_RESTRICTION_ENABLED:="no"}
 : ${EMAIL_ACTIVE_WINDOWS:=""}
@@ -39,19 +39,18 @@ fi
 : ${EMAIL_ACTIVE_DAYS:="Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"}
 : ${INITIAL_DELAY:=0}
 : ${FOLLOWUP_DELAY:=25}
-: ${LOGIN_FAILURE_DETECTION_ENABLED:="no"} # New setting for login failure detection
-: ${LOCATION_ENABLED:="yes"}
-: ${LOCATION_METHOD:="corelocation_cli"} # Default method: corelocation_cli or apple_shortcuts
-: ${NETWORK_INFO_ENABLED:="yes"} # Default for network information
+: ${LOGIN_FAILURE_DETECTION_ENABLED:="no"}
+: ${LOCATION_METHOD:="corelocation_cli"} 
+: ${NETWORK_INFO_ENABLED:="yes"} 
 : ${WEBCAM_ENABLED:="yes"}
 : ${SCREENSHOT_ENABLED:="yes"}
-: ${FOLLOWUP_SCREENSHOT_ENABLED:="yes"} # New setting for followup screenshot
+: ${FOLLOWUP_SCREENSHOT_ENABLED:="yes"} 
 : ${CUSTOM_SCHEDULE_ENABLED:="no"}
 : ${ACTIVE_DAYS:="Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"}
 : ${SCHEDULE_ACTIVE_WINDOWS:=""}
 : ${AUTO_DELETE_ENABLED:="no"}
-: ${AUTO_DELETE_DAYS:=7}
-: ${HTML_EMAIL_ENABLED:="yes"} # New setting for HTML email format
+: ${AUTO_DELETE_DAYS:=365}
+: ${HTML_EMAIL_ENABLED:="yes"} 
 
 # Print key configuration settings for debugging
 echo "Key configuration settings:"
@@ -2365,46 +2364,14 @@ if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
     # Set a timeout for the detection (in seconds)
     DETECTION_TIMEOUT=60
     
-    # Variables for tracking login attempts
-    success_count=0
-    failed_count=0
-    fingerprint_count=0
-    password_count=0
-    time_threshold=1
-    last_success_time=0
-    last_failed_time=0
-    ACTUAL_USER=$(whoami)
-    
     # Flag to track detection status
     login_detected=false
     login_success=false
-
-    current_time_seconds() {
-        date +%s
-    }
-
-    detect_auth_method() {
-        local line="$1"
-        local username="$2"
-
-        if [[ "$username" == "admin" ]]; then
-            echo "fingerprint/touch ID"
-        elif [[ "$username" == "$ACTUAL_USER" ]]; then
-            echo "password"
-        elif [[ "$line" == *"_authSuccessUsingPassword"* || "$line" == *"with password"* || "$line" == *"password is CORRECT"* ]]; then
-            echo "password"
-        elif [[ "$line" == *"Screen saver unlocked by"* && "$line" != *"_authSuccessUsingPassword"* ]]; then
-            echo "fingerprint/touch ID"
-        elif [[ "$line" == *"biometric"* || "$line" == *"Touch ID"* ]]; then
-            echo "fingerprint/touch ID"
-        else
-            echo "unknown method"
-        fi
-    }
     
-    # Use process substitution to avoid creating a subshell that would lose variable changes
-    # This technique allows us to read from log stream while maintaining variables in the main shell
-    exec 3< <(log stream --predicate 'eventMessage CONTAINS "authSuccess" OR eventMessage CONTAINS "Failed to authenticate user" OR eventMessage CONTAINS "biometryFailed" OR eventMessage CONTAINS "Touch ID" OR eventMessage CONTAINS "LocalAuthentication" OR eventMessage CONTAINS "Authentication cancelled" OR eventMessage CONTAINS "unlock attempts"' --style syslog 2>/dev/null)
+    # Helper function to get local time in a consistent format
+    get_local_time() {
+        date "+%Y-%m-%d %I:%M:%S %p"
+    }
     
     # Create a temp file for timeout notification
     TIMEOUT_FILE=$(mktemp)
@@ -2422,6 +2389,14 @@ if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
     
     echo "Waiting for login events (timeout: ${DETECTION_TIMEOUT} seconds)..."
     
+    # Use process substitution to monitor log stream
+    exec 3< <(log stream --predicate '
+      eventMessage CONTAINS "Screen saver unlocked by" OR 
+      eventMessage CONTAINS "setting session authenticated flag" OR
+      eventMessage CONTAINS "Failed to authenticate user" OR 
+      eventMessage CONTAINS "APEventTouchIDNoMatch"
+    ' --style syslog 2>/dev/null)
+    
     # Read log stream with timeout check
     while IFS= read -r line <&3 || [[ -n "$line" ]]; do
         # Check for timeout
@@ -2435,61 +2410,55 @@ if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
         # Skip filtering messages
         [[ "$line" == *"Filtering the log data"* ]] && continue
         
-        current_time=$(current_time_seconds)
-        log_timestamp=$(echo "$line" | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}" | head -1)
-        [[ -z "$log_timestamp" ]] && log_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+        # Get timestamp for log entry
+        log_timestamp=$(get_local_time)
         
-        if [[ "$line" == *"authSuccess"* ]]; then
-            # Determine if this is a primary successful event
-            if [[ "$line" == *"Screen saver unlocked by"* || "$line" == *"setting session authenticated flag"* || "$line" == *"Unlock succeeded"* || ( "$line" == *"password is CORRECT"* && "$line" != *"calling defaultScreenLockHandleUnlockResult"* ) ]]; then
-                if (( current_time - last_success_time > time_threshold )); then
-                    last_success_time=$current_time
-                    username=$(echo "$line" | grep -oE "unlocked by [a-zA-Z0-9_-]+" | awk '{print $3}')
-                    [[ -z "$username" ]] && username=$(whoami)
-                    auth_method=$(detect_auth_method "$line" "$username")
-                    if [[ "$auth_method" == "fingerprint/touch ID" ]]; then
-                        ((fingerprint_count++))
-                    elif [[ "$auth_method" == "password" ]]; then
-                        ((password_count++))
-                    fi
-                    ((success_count++))
-                    echo "[$log_timestamp] ✅ SUCCESS ($success_count): Login by $username using $auth_method"
-                    
-                    # Set flags and break the loop
-                    login_detected=true
-                    login_success=true
-                    break
-                fi
-            fi
-        elif [[ "$line" == *"Failed to authenticate user"* || "$line" == *"biometryFailed"* || "$line" == *"LocalAuthentication failed"* || "$line" == *"Touch ID authentication failed"* || ( "$line" == *"unlock attempts"* && "$line" != *"unlock attempts: 0"* ) || "$line" == *"Authentication cancelled"* ]]; then
-            if (( current_time - last_failed_time > time_threshold )); then
-                last_failed_time=$current_time
-                auth_method="unknown method"
-                [[ "$line" == *"Touch ID"* || "$line" == *"biometry"* ]] && auth_method="fingerprint/touch ID"
-                [[ "$line" == *"password"* ]] && auth_method="password"
-                ((failed_count++))
-                echo "[$log_timestamp] ❌ FAILED ($failed_count): Authentication attempt failed ($auth_method)"
-                
-                # Set flag and break the loop
-                login_detected=true
-                login_success=false
-                break
-            fi
+        # SUCCESS DETECTION - Touch ID
+        if [[ "$line" == *"Screen saver unlocked by"* ]]; then
+            auth_method="fingerprint/touch ID"
+            echo "[$log_timestamp] ✅ SUCCESS: Login using $auth_method succeeded"
+            login_detected=true
+            login_success=true
+            break
+        
+        # SUCCESS DETECTION - Password
+        elif [[ "$line" == *"setting session authenticated flag"* ]]; then
+            auth_method="password"
+            echo "[$log_timestamp] ✅ SUCCESS: Login using $auth_method succeeded"
+            login_detected=true
+            login_success=true
+            break
+        
+        # FAILURE DETECTION - Touch ID
+        elif [[ "$line" == *"APEventTouchIDNoMatch"* ]]; then
+            auth_method="fingerprint/touch ID"
+            echo "[$log_timestamp] ❌ FAILED: Login using $auth_method failed"
+            login_detected=true
+            login_success=false
+            break
+        
+        # FAILURE DETECTION - Password
+        elif [[ "$line" == *"Failed to authenticate user"* ]]; then
+            auth_method="password"
+            echo "[$log_timestamp] ❌ FAILED: Login using $auth_method failed"
+            login_detected=true
+            login_success=false
+            break
         fi
     done
     
     # Clean up
     exec 3<&-  # Close file descriptor
-
-    # Remove timeout process without using kill (prevents termination message)
+    
+    # Check for timeout
     timeout_triggered=false
     if [[ -s "$TIMEOUT_FILE" ]]; then
         timeout_triggered=true
     fi
-
+    
     # Clean up the temp file
     rm -f "$TIMEOUT_FILE"
-
+    
     # Check detection status and take appropriate action
     if $login_detected; then
         if $login_success; then
