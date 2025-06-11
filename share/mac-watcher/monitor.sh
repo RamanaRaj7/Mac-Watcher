@@ -2361,9 +2361,6 @@ fi
 if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
     echo "Login detection enabled. Monitoring for login attempts..."
     
-    # Set a timeout for the detection (in seconds)
-    DETECTION_TIMEOUT=60
-    
     # Flag to track detection status
     login_detected=false
     login_success=false
@@ -2372,49 +2369,46 @@ if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
     get_local_time() {
         date "+%Y-%m-%d %I:%M:%S %p"
     }
+
+    # Helper function to check if screen is locked
+    is_screen_locked() {
+        local screen_locked=$(/usr/libexec/PlistBuddy -c "print :IOConsoleUsers:0:CGSSessionScreenIsLocked" /dev/stdin 2>/dev/null <<< "$(ioreg -n Root -d1 -a)")
+        if [[ "$screen_locked" == "true" ]]; then
+            # Screen is locked
+            return 0
+        else
+            # Screen is unlocked
+            return 1
+        fi
+    }
     
-    # Create a temp file for timeout notification
-    TIMEOUT_FILE=$(mktemp)
-    
-    # Start a timeout in background without using signals (no termination message)
-    (
-        sleep $DETECTION_TIMEOUT
-        # Signal timeout by writing to a file instead of sending a signal
-        echo "TIMEOUT" > "$TIMEOUT_FILE"
-    ) >/dev/null 2>&1 &
-    # Store timeout process ID
-    timeout_pid=$!
-    # Immediately disown it to prevent termination messages
-    disown $timeout_pid
-    
-    echo "Waiting for login events (timeout: ${DETECTION_TIMEOUT} seconds)..."
+    echo "Waiting for login events or system sleep..."
     
     # Use process substitution to monitor log stream
     exec 3< <(log stream --predicate '
       eventMessage CONTAINS "Screen saver unlocked by" OR 
       eventMessage CONTAINS "setting session authenticated flag" OR
       eventMessage CONTAINS "Failed to authenticate user" OR 
-      eventMessage CONTAINS "APEventTouchIDNoMatch"
+      eventMessage CONTAINS "APEventTouchIDNoMatch" OR
+      eventMessage CONTAINS "System is sleeping"
     ' --style syslog 2>/dev/null)
     
-    # Read log stream with timeout check
+    # Read log stream
     while IFS= read -r line <&3 || [[ -n "$line" ]]; do
-        # Check for timeout
-        if [[ -s "$TIMEOUT_FILE" ]]; then
-            # Timeout occurred
-            echo "Detection timeout reached. No login events detected within $DETECTION_TIMEOUT seconds."
-            timeout_triggered=true
-            break
-        fi
-        
         # Skip filtering messages
         [[ "$line" == *"Filtering the log data"* ]] && continue
         
         # Get timestamp for log entry
         log_timestamp=$(get_local_time)
         
+        # SYSTEM SLEEP DETECTION
+        if [[ "$line" == *"System is sleeping"* ]]; then
+            echo "[$log_timestamp] System is sleeping. Exiting script."
+            exec 3<&-  # Close file descriptor
+            exit 0
+        
         # SUCCESS DETECTION - Touch ID
-        if [[ "$line" == *"Screen saver unlocked by"* ]]; then
+        elif [[ "$line" == *"Screen saver unlocked by"* ]]; then
             auth_method="fingerprint/touch ID"
             echo "[$log_timestamp] ✅ SUCCESS: Login using $auth_method succeeded"
             login_detected=true
@@ -2435,6 +2429,15 @@ if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
             echo "[$log_timestamp] ❌ FAILED: Login using $auth_method failed"
             login_detected=true
             login_success=false
+            
+            # Check if Mac is unlocked despite wrong fingerprint 
+            if ! is_screen_locked; then
+                echo "[$log_timestamp] Mac is unlocked after wrong fingerprint. Exiting script."
+                exec 3<&-  # Close file descriptor
+                exit 0
+            else
+                echo "[$log_timestamp] Mac remains locked after wrong fingerprint. Continuing monitoring."
+            fi
             break
         
         # FAILURE DETECTION - Password
@@ -2450,15 +2453,6 @@ if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
     # Clean up
     exec 3<&-  # Close file descriptor
     
-    # Check for timeout
-    timeout_triggered=false
-    if [[ -s "$TIMEOUT_FILE" ]]; then
-        timeout_triggered=true
-    fi
-    
-    # Clean up the temp file
-    rm -f "$TIMEOUT_FILE"
-    
     # Check detection status and take appropriate action
     if $login_detected; then
         if $login_success; then
@@ -2468,11 +2462,7 @@ if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
             echo "Failed login detected. Continuing with security monitoring actions..."
         fi
     else
-        if $timeout_triggered; then
-            echo "No login events detected within timeout period."
-        else
-            echo "Login detection completed without any events."
-        fi
+        echo "Login detection completed without any events."
         echo "No login failures detected. Exiting script as per configuration."
         exit 0
     fi

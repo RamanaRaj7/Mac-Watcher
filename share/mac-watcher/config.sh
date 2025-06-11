@@ -1858,7 +1858,7 @@ display_menu() {
     echo -e "  ${PRIMARY}[5]${NC} Storage Path Settings"
     echo -e "  ${PRIMARY}[6]${NC} Timing Settings"
     echo -e "  ${PRIMARY}[7]${NC} Auto-Delete Settings"
-    echo -e "  ${PRIMARY}[8]${NC} Login Detection Settings"
+    echo -e "  ${PRIMARY}[8]${NC} Login Detection Settings (Beta)"
     echo -e "  ${PRIMARY}[9]${NC} Save & Exit"
     echo
     read -p "Select option (1-9): " choice
