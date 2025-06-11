@@ -2384,6 +2384,14 @@ if [ "$LOGIN_FAILURE_DETECTION_ENABLED" = "yes" ]; then
     
     echo "Waiting for login events or system sleep..."
     
+    log_timestamp=$(get_local_time)
+    if ! is_screen_locked; then
+        echo "[$log_timestamp] Mac is already unlocked. Exiting script."
+        exit 0
+    else
+        echo "[$log_timestamp] Mac is locked. Continuing to monitor login events."
+    fi
+    
     # Use process substitution to monitor log stream
     exec 3< <(log stream --predicate '
       eventMessage CONTAINS "Screen saver unlocked by" OR 
